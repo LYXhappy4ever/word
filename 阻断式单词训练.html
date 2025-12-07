@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>阻断式单词训练器 (终极版)</title>
+    <style>
+        :root {
+            --primary: #4F46E5; /* Indigo 600 */
+            --primary-dark: #4338ca;
+            --bg-body: #F3F4F6;
+            --bg-card: #FFFFFF;
+            --text-main: #1F2937;
+            --text-sub: #6B7280;
+            --danger: #EF4444;
+            --success: #10B981;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --radius: 12px;
+            --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; font-family: var(--font-stack); background: var(--bg-body); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        /* 通用组件 */
+        .btn {
+            border: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 14px;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary { background: var(--primary); color: white; box-shadow: var(--shadow-sm); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-ghost { background: transparent; color: var(--text-sub); }
+        .btn-outline { border: 1px solid #d1d5db; background: white; color: var(--text-main); }
+        
+        .hidden { display: none !important; }
+        .full-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background: var(--bg-body); display: flex; flex-direction: column; }
+
+        /* 顶部导航 */
+        header {
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+            padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: var(--shadow-sm); z-index: 50; flex-shrink: 0;
+        }
+        header h1 { margin: 0; font-size: 18px; font-weight: 700; color: var(--primary); }
+
+        /* 书架视图 */
+        #bookshelf-view { flex: 1; overflow-y: auto; padding: 16px; }
+        .book-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+        .book-card {
+            background: var(--bg-card); border-radius: var(--radius); padding: 16px;
+            box-shadow: var(--shadow-sm); position: relative; transition: transform 0.2s; border: 1px solid rgba(0,0,0,0.02);
+            display: flex; flex-direction: column; justify-content: space-between; height: 140px;
+        }
+        .book-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .book-title { font-weight: 700; font-size: 16px; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .book-meta { font-size: 12px; color: var(--text-sub); margin-bottom: 8px; }
+        .book-special { border: 2px solid var(--danger); }
+        .book-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: auto; }
+        .add-book-card {
+            border: 2px dashed #d1d5db; background: transparent; color: var(--text-sub);
+            align-items: center; justify-content: center; cursor: pointer;
+        }
+        
+        /* 训练视图 */
+        #training-view { display: flex; flex-direction: column; height: 100%; }
+        .training-header { padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; background: white; }
+        .timer-bar { height: 4px; background: #e5e7eb; width: 100%; position: relative; }
+        .timer-progress { height: 100%; background: var(--primary); width: 100%; transition: width 1s linear; }
+        
+        .training-container { flex: 1; overflow-y: auto; padding: 16px; position: relative; }
+        
+        /* 布局模式: 网格 (默认) */
+        .layout-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+            align-content: start;
+        }
+        @media (min-width: 600px) { .layout-grid { grid-template-columns: repeat(4, 1fr); } }
+
+        /* 布局模式: 单列 */
+        .layout-list { display: flex; flex-direction: column; gap: 16px; max-width: 600px; margin: 0 auto; }
+        .layout-list .word-card { height: 200px; font-size: 1.2em; }
+
+        /* 卡片翻转核心 */
+        .word-card {
+            background: transparent; perspective: 1000px; height: 140px; cursor: pointer;
+            position: relative; user-select: none;
+        }
+        .card-inner {
+            position: relative; width: 100%; height: 100%; text-align: center;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-style: preserve-3d; border-radius: var(--radius);
+            box-shadow: var(--shadow-md); will-change: transform;
+        }
+        .word-card.flipped .card-inner { transform: rotateY(180deg); }
+        .word-card.completed { opacity: 0; pointer-events: none; transition: opacity 0.5s; } /* 极速模式消失 */
+
+        .card-front, .card-back {
+            position: absolute; width: 100%; height: 100%;
+            -webkit-backface-visibility: hidden; backface-visibility: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: white; border-radius: var(--radius); padding: 10px;
+        }
+        .card-back { transform: rotateY(180deg); background: #fafafa; }
+        
+        .word-text { font-size: 18px; font-weight: 700; color: var(--text-main); word-break: break-all; }
+        .word-meaning { font-size: 14px; color: var(--text-sub); margin-bottom: 10px; overflow-y: auto; max-height: 60px; }
+        
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%; position: absolute; top: 10px; right: 10px;
+            background: #d1d5db;
+        }
+        .status-dot.green { background: var(--success); }
+        .status-dot.red { background: var(--danger); }
+        
+        .review-tag {
+            position: absolute; top: 8px; left: 8px; font-size: 10px; background: #FEF3C7; color: #D97706;
+            padding: 2px 6px; border-radius: 4px; font-weight: bold;
+        }
+
+        .card-actions { display: flex; gap: 8px; width: 100%; margin-top: auto; }
+        .action-btn { flex: 1; padding: 8px; border: none; border-radius: 6px; font-weight: bold; color: white; cursor: pointer; }
+        .btn-remember { background: var(--success); }
+        .btn-forgot { background: var(--danger); }
+
+        /* 底部控制栏 */
+        .bottom-controls {
+            padding: 12px 16px; background: white; border-top: 1px solid #e5e7eb;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        
+        /* 导入弹窗 */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center; z-index: 200;
+        }
+        .modal { background: white; width: 90%; max-width: 400px; padding: 20px; border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+        textarea { width: 100%; height: 100px; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px; margin: 10px 0; font-family: monospace; resize: none; }
+        
+        /* 提示信息 */
+        #toast {
+            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(31, 41, 55, 0.9); color: white; padding: 8px 16px;
+            border-radius: 20px; font-size: 14px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 300;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="bookshelf-view" class="view">
+        <header>
+            <h1>📚 我的书架</h1>
+            <button class="btn btn-primary" onclick="App.showImportModal()">+ 导入</button>
+        </header>
+        <div id="book-list" class="book-list"></div>
+        <div style="margin-top: 20px; text-align: center; color: #9ca3af; font-size: 12px;">
+            存储状态: <span id="storage-status">Checking...</span>
+        </div>
+    </div>
+
+    <div id="training-view" class="view full-screen hidden">
+        <header>
+            <button class="btn btn-ghost" onclick="App.endTraining()">退出</button>
+            <div style="text-align: center;">
+                <h1 id="train-book-title">训练中</h1>
+                <span style="font-size: 10px; color: var(--text-sub)">第 <span id="round-count">1</span> 轮 | 组剩余: <span id="group-remain">0</span></span>
+            </div>
+            <button class="btn btn-ghost" style="color: var(--primary)" onclick="Training.forceNextGroup()">跳过</button>
+        </header>
+        <div class="timer-bar"><div id="timer-progress" class="timer-progress"></div></div>
+        
+        <div id="card-container" class="training-container layout-grid">
+            </div>
+
+        <div class="bottom-controls">
+            <button class="btn btn-outline" id="layout-toggle" onclick="Training.toggleLayout()">⊞ 切换视图</button>
+            <span style="font-size: 12px; color: var(--text-sub)">点击卡片翻面</span>
+        </div>
+    </div>
+
+    <div id="import-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3>导入单词书</h3>
+            <p style="font-size: 12px; color: gray;">支持 JSON 或 粘贴文本 (自动正则抓取)</p>
+            <input type="text" id="import-name" placeholder="书名 (可选)" style="width: 100%; padding: 8px; margin-bottom: 5px; border: 1px solid #ddd; border-radius: 4px;">
+            <textarea id="import-content" placeholder='粘贴内容... 例如: [{"word":"apple","meaning":"苹果"}]'></textarea>
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn btn-ghost" onclick="document.getElementById('import-modal').classList.add('hidden')">取消</button>
+                <button class="btn btn-primary" onclick="App.processImport()">开始导入</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+<script>
+/**
+ * 1. 核心服务：音频、存储、工具
+ */
+const Utils = {
+    uuid: () => Date.now().toString(36) + Math.random().toString(36).substr(2),
+    toast: (msg) => {
+        const t = document.getElementById('toast');
+        t.innerText = msg; t.style.opacity = 1;
+        setTimeout(() => t.style.opacity = 0, 2000);
+    },
+    // 暴力正则提取单词
+    extractWords: (text) => {
+        const words = [];
+        // 匹配模式1: JSON-like key:value
+        const regexJSON = /word["']?\s*:\s*["'](.*?)["'][\s\S]*?meaning["']?\s*:\s*["'](.*?)["']/gi;
+        // 匹配模式2: 简单行 word ... meaning (兜底)
+        let match;
+        while ((match = regexJSON.exec(text)) !== null) {
+            if(match[1] && match[2]) words.push({ word: match[1], meaning: match[2], id: Utils.uuid() });
+        }
+        if (words.length === 0) {
+            // 尝试更暴力的单行分割
+            const lines = text.split('\n');
+            lines.forEach(line => {
+                const parts = line.split(/[\t,:-]+/); // 尝试常见分隔符
+                if(parts.length >= 2 && parts[0].length > 1) {
+                    words.push({ word: parts[0].trim(), meaning: parts.slice(1).join(' ').trim(), id: Utils.uuid() });
+                }
+            });
+        }
+        return words;
+    }
+};
+
+const AudioSys = {
+    ctx: null,
+    init: () => {
+        if (!AudioSys.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            AudioSys.ctx = new AudioContext();
+        }
+    },
+    beep: () => {
+        if (!AudioSys.ctx) return;
+        if (AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume();
+        const osc = AudioSys.ctx.createOscillator();
+        const gain = AudioSys.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(AudioSys.ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, AudioSys.ctx.currentTime); // A5
+        osc.frequency.exponentialRampToValueAtTime(440, AudioSys.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, AudioSys.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, AudioSys.ctx.currentTime + 0.1);
+        osc.start();
+        osc.stop(AudioSys.ctx.currentTime + 0.15);
+    }
+};
+
+const StorageSys = {
+    mode: 'local', // 'local' or 'ram'
+    ramCache: {},
+    init: () => {
+        try {
+            localStorage.setItem('__test', '1');
+            localStorage.removeItem('__test');
+            StorageSys.mode = 'local';
+            document.getElementById('storage-status').innerText = '正常 (Disk)';
+        } catch (e) {
+            StorageSys.mode = 'ram';
+            document.getElementById('storage-status').innerText = '降级模式 (RAM - 刷新丢失)';
+            Utils.toast('⚠️ 存储空间不足，已切换为临时内存模式');
+        }
+        // 初始化错题本
+        if (!StorageSys.getBook(App.MISTAKE_BOOK_ID)) {
+            StorageSys.saveBook({
+                id: App.MISTAKE_BOOK_ID,
+                name: '📅 错题本',
+                words: [],
+                isSystem: true
+            });
+        }
+    },
+    getBooksMeta: () => {
+        if (StorageSys.mode === 'ram') return Object.values(StorageSys.ramCache).map(b => ({id: b.id, name: b.name, count: b.words.length, isSystem: b.isSystem}));
+        
+        const books = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith('bk_')) {
+                try {
+                    const b = JSON.parse(localStorage.getItem(key));
+                    books.push({ id: b.id, name: b.name, count: b.words.length, isSystem: b.isSystem });
+                } catch(e) {}
+            }
+        }
+        return books.sort((a,b) => b.isSystem ? 1 : -1); // 错题本置顶
+    },
+    getBook: (id) => {
+        if (StorageSys.mode === 'ram') return StorageSys.ramCache[id];
+        return JSON.parse(localStorage.getItem('bk_' + id));
+    },
+    saveBook: (book) => {
+        try {
+            if (StorageSys.mode === 'local') {
+                localStorage.setItem('bk_' + book.id, JSON.stringify(book));
+            } else {
+                StorageSys.ramCache[book.id] = book;
+            }
+        } catch (e) {
+            if (e.name === 'QuotaExceededError') {
+                StorageSys.mode = 'ram';
+                StorageSys.ramCache[book.id] = book; // 降级写入
+                Utils.toast('存储已满，转入内存模式');
+                document.getElementById('storage-status').innerText = '降级模式 (RAM)';
+            }
+        }
+    },
+    deleteBook: (id) => {
+        if (StorageSys.mode === 'local') localStorage.removeItem('bk_' + id);
+        else delete StorageSys.ramCache[id];
+    },
+    addToMistakes: (wordObj) => {
+        const mb = StorageSys.getBook(App.MISTAKE_BOOK_ID);
+        // 去重
+        if (!mb.words.find(w => w.word === wordObj.word)) {
+            mb.words.unshift({ ...wordObj, id: Utils.uuid() }); // 复制并赋予新ID
+            StorageSys.saveBook(mb);
+        }
+    }
+};
+
+/**
+ * 2. 训练逻辑引擎
+ */
+const Training = {
+    currentBook: null,
+    queue: [],         // 待训练队列
+    currentGroup: [],  // 当前展示组
+    mistakesBuffer: [],// 当前训练的错题缓存（回马枪用）
+    timer: null,
+    timeLeft: 60,
+    roundsCompleted: 0,
+    layout: 'grid',    // grid | list
+    
+    start: (bookId) => {
+        Training.currentBook = StorageSys.getBook(bookId);
+        if (!Training.currentBook || Training.currentBook.words.length === 0) {
+            Utils.toast('这本书是空的！');
+            return;
+        }
+        
+        // 简单的洗牌
+        let words = [...Training.currentBook.words].sort(() => 0.5 - Math.random());
+        Training.queue = words;
+        Training.mistakesBuffer = [];
+        Training.roundsCompleted = 0;
+        
+        document.getElementById('bookshelf-view').classList.add('hidden');
+        document.getElementById('training-view').classList.remove('hidden');
+        document.getElementById('train-book-title').innerText = Training.currentBook.name;
+        
+        // 恢复布局偏好
+        const savedLayout = localStorage.getItem('layout_pref');
+        if(savedLayout) Training.setLayout(savedLayout);
+
+        AudioSys.init();
+        Training.nextGroup();
+    },
+    
+    nextGroup: () => {
+        // 清除旧计时器
+        clearInterval(Training.timer);
+        AudioSys.beep();
+        Training.roundsCompleted++;
+        
+        // 1. 基础抽取
+        const GROUP_SIZE = 8;
+        let nextBatch = Training.queue.splice(0, GROUP_SIZE);
+        
+        // 2. 双轨回马枪逻辑 (每3轮，如果缓冲区有错词，注入2个)
+        if (Training.roundsCompleted % 3 === 0 && Training.mistakesBuffer.length > 0) {
+            const injections = Training.mistakesBuffer.splice(0, 2);
+            injections.forEach(w => w.isReview = true); // 标记为复习
+            nextBatch = nextBatch.concat(injections);
+        }
+        
+        if (nextBatch.length === 0) {
+            if (Training.mistakesBuffer.length > 0) {
+                // 队列空了但还有错词，全部倒回去继续练
+                Training.queue = Training.mistakesBuffer;
+                Training.mistakesBuffer = [];
+                Training.nextGroup();
+                return;
+            } else {
+                alert('🎉 训练完成！太棒了！');
+                App.endTraining();
+                return;
+            }
+        }
+
+        Training.currentGroup = nextBatch.map(w => ({ ...w, status: 'pending' })); // pending, remembered, forgot
+        Training.renderCards();
+        Training.startTimer();
+        Training.updateStats();
+    },
+
+    startTimer: () => {
+        Training.timeLeft = 60; // 60秒
+        const bar = document.getElementById('timer-progress');
+        bar.style.transition = 'none';
+        bar.style.width = '100%';
+        
+        // 强制重绘
+        bar.offsetHeight; 
+        
+        bar.style.transition = 'width 1s linear';
+        
+        Training.timer = setInterval(() => {
+            Training.timeLeft--;
+            const pct = (Training.timeLeft / 60) * 100;
+            bar.style.width = `${pct}%`;
+            
+            if (Training.timeLeft <= 0) {
+                Training.forceNextGroup();
+            }
+        }, 1000);
+    },
+
+    forceNextGroup: () => {
+        // 时间到，还没记的词算作 "Forgot" 但不加入错题本，只加入回马枪? 
+        // 策略：未标记的全部视为 "Forgot" 并保留在当前训练周期的末尾(Queue)，不记入永久错题本以免污染
+        const pending = Training.currentGroup.filter(w => w.status === 'pending');
+        if (pending.length > 0) {
+            // 将未完成的词塞回队列末尾
+            Training.queue.push(...pending);
+            Utils.toast(`${pending.length} 个单词未完成，已推后`);
+        }
+        Training.nextGroup();
+    },
+
+    handleCardAction: (id, action) => {
+        const idx = Training.currentGroup.findIndex(w => w.id === id);
+        if (idx === -1) return;
+        const item = Training.currentGroup[idx];
+        
+        // 更新UI状态
+        const cardEl = document.getElementById(`card-${id}`);
+        const dot = cardEl.querySelector('.status-dot');
+        
+        if (action === 'remember') {
+            item.status = 'remembered';
+            dot.className = 'status-dot green';
+            // 翻转回来
+            cardEl.classList.remove('flipped');
+        } else {
+            item.status = 'forgot';
+            dot.className = 'status-dot red';
+            cardEl.classList.remove('flipped');
+            
+            // 核心逻辑：双轨
+            // 轨1: 加入本局回马枪
+            Training.mistakesBuffer.push(item);
+            // 轨2: 存入永久错题本
+            StorageSys.addToMistakes(item);
+        }
+        
+        // 极速模式检测
+        const allDone = Training.currentGroup.every(w => w.status === 'remembered');
+        if (allDone) {
+            setTimeout(Training.nextGroup, 500); // 稍微延迟体验更好
+        }
+    },
+
+    renderCards: () => {
+        const container = document.getElementById('card-container');
+        container.innerHTML = '';
+        
+        Training.currentGroup.forEach(item => {
+            const el = document.createElement('div');
+            el.className = 'word-card';
+            el.id = `card-${item.id}`;
+            el.onclick = (e) => {
+                // 如果点击的是按钮，不翻转
+                if (e.target.tagName === 'BUTTON') return;
+                el.classList.toggle('flipped');
+            };
+            
+            const reviewTag = item.isReview ? `<div class="review-tag">复习</div>` : '';
+            
+            el.innerHTML = `
+                <div class="card-inner">
+                    <div class="card-front">
+                        ${reviewTag}
+                        <div class="status-dot"></div>
+                        <div class="word-text">${item.word}</div>
+                    </div>
+                    <div class="card-back">
+                        <div class="word-meaning">${item.meaning}</div>
+                        <div class="card-actions">
+                            <button class="action-btn btn-forgot" onclick="Training.handleCardAction('${item.id}', 'forgot')">没记住</button>
+                            <button class="action-btn btn-remember" onclick="Training.handleCardAction('${item.id}', 'remember')">记住了</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(el);
+        });
+    },
+
+    updateStats: () => {
+        document.getElementById('round-count').innerText = Training.roundsCompleted;
+        document.getElementById('group-remain').innerText = Training.currentGroup.length;
+    },
+
+    toggleLayout: () => {
+        const newLayout = Training.layout === 'grid' ? 'list' : 'grid';
+        Training.setLayout(newLayout);
+    },
+    
+    setLayout: (mode) => {
+        Training.layout = mode;
+        const container = document.getElementById('card-container');
+        const btn = document.getElementById('layout-toggle');
+        
+        if (mode === 'grid') {
+            container.classList.remove('layout-list');
+            container.classList.add('layout-grid');
+            btn.innerText = '⊞ 切换视图';
+        } else {
+            container.classList.remove('layout-grid');
+            container.classList.add('layout-list');
+            btn.innerText = '▢ 切换视图';
+        }
+        localStorage.setItem('layout_pref', mode);
+    }
+};
+
+/**
+ * 3. 应用主控
+ */
+const App = {
+    MISTAKE_BOOK_ID: 'mistake_notebook',
+    
+    init: () => {
+        StorageSys.init();
+        App.renderBookshelf();
+    },
+
+    renderBookshelf: () => {
+        const list = document.getElementById('book-list');
+        list.innerHTML = '';
+        const books = StorageSys.getBooksMeta();
+        
+        books.forEach(b => {
+            const el = document.createElement('div');
+            el.className = `book-card ${b.isSystem ? 'book-special' : ''}`;
+            el.innerHTML = `
+                <div>
+                    <div class="book-title">${b.name}</div>
+                    <div class="book-meta">${b.count} 词</div>
+                </div>
+                <div class="book-actions">
+                    ${!b.isSystem ? `<button class="btn btn-outline" style="padding:4px 8px; font-size:12px;" onclick="App.deleteBook('${b.id}', event)">删</button>` : ''}
+                    <button class="btn btn-primary" onclick="Training.start('${b.id}')">进入</button>
+                </div>
+            `;
+            list.appendChild(el);
+        });
+
+        // 添加按钮
+        const addBtn = document.createElement('div');
+        addBtn.className = 'book-card add-book-card';
+        addBtn.innerHTML = '<div style="font-size:32px;">+</div><div>导入书本</div>';
+        addBtn.onclick = App.showImportModal;
+        list.appendChild(addBtn);
+    },
+
+    showImportModal: () => {
+        document.getElementById('import-modal').classList.remove('hidden');
+        document.getElementById('import-content').value = '';
+        document.getElementById('import-name').value = '';
+    },
+
+    processImport: () => {
+        const raw = document.getElementById('import-content').value;
+        const nameInput = document.getElementById('import-name').value;
+        if (!raw.trim()) return;
+
+        let words = [];
+        let bookName = nameInput || '新单词书 ' + new Date().toLocaleDateString();
+
+        try {
+            // 尝试标准 JSON
+            const json = JSON.parse(raw);
+            if (Array.isArray(json)) {
+                words = json.map(w => ({word: w.word, meaning: w.meaning, id: Utils.uuid()}));
+            } else if (json.fullContent) {
+                // 兼容特定格式
+                words = json.fullContent.map(w => ({word: w.word, meaning: w.meaning, id: Utils.uuid()}));
+                if (!nameInput && json.fileName) bookName = json.fileName;
+            }
+        } catch (e) {
+            // JSON 失败，正则提取
+            console.log('JSON Parse failed, using regex fallback');
+        }
+
+        if (words.length === 0) {
+            words = Utils.extractWords(raw);
+        }
+
+        if (words.length === 0) {
+            alert('无法解析内容。请检查格式。\n支持 JSON 或 "单词: 释义" 文本。');
+            return;
+        }
+
+        const newBook = {
+            id: Utils.uuid(),
+            name: bookName,
+            words: words,
+            isSystem: false
+        };
+
+        StorageSys.saveBook(newBook);
+        document.getElementById('import-modal').classList.add('hidden');
+        App.renderBookshelf();
+        Utils.toast(`成功导入 ${words.length} 个单词`);
+    },
+
+    deleteBook: (id, e) => {
+        e.stopPropagation();
+        if(confirm('确定要删除这本书吗？')) {
+            StorageSys.deleteBook(id);
+            App.renderBookshelf();
+        }
+    },
+
+    endTraining: () => {
+        clearInterval(Training.timer);
+        document.getElementById('training-view').classList.add('hidden');
+        document.getElementById('bookshelf-view').classList.remove('hidden');
+        App.renderBookshelf(); // 刷新数据（尤其是错题本数量变化）
+    }
+};
+
+// 启动
+window.onload = App.init;
+</script>
+</body>
+</html>
