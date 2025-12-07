@@ -3,159 +3,200 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>阻断式单词训练器 (手势交互终极版)</title>
+    <title>单词训练器 (完美修复版)</title>
     <style>
         :root {
             --primary: #4F46E5;
-            --bg-body: #F9FAFB;
+            --primary-bg: #EEF2FF;
+            --bg-body: #F3F4F6;
             --bg-card: #FFFFFF;
             --text-main: #1F2937;
             --text-sub: #6B7280;
             --danger: #EF4444;
             --success: #10B981;
+            --focus-ring: #818cf8;
             --radius: 16px;
             --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }
 
-        /* --- 1. 核心修复：防止画面抖动 --- */
-        html { 
-            box-sizing: border-box; 
-            -webkit-tap-highlight-color: transparent;
-            scrollbar-gutter: stable; 
-        }
-        
+        html { box-sizing: border-box; -webkit-tap-highlight-color: transparent; scrollbar-gutter: stable; }
         body { margin: 0; padding: 0; font-family: var(--font-stack); background: var(--bg-body); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         * { box-sizing: border-box; }
 
-        .btn { border: none; padding: 12px 20px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; touch-action: manipulation; }
-        .btn:active { opacity: 0.7; }
+        /* 通用按钮样式 */
+        .btn { border: none; padding: 10px 16px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; outline: none; }
+        .btn:active { transform: scale(0.96); }
         .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); }
+        .btn-primary:hover { background: #4338ca; }
         .btn-danger { background: var(--danger); color: white; }
         .btn-ghost { background: transparent; color: var(--text-sub); }
-        .btn-outline { border: 1px solid #d1d5db; background: white; color: var(--text-main); }
+        .btn-ghost:hover { background: rgba(0,0,0,0.05); color: var(--text-main); }
+        .btn-outline { border: 1px solid #E5E7EB; background: white; color: var(--text-main); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
         
         .hidden { display: none !important; }
         .view { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 
-        header { background: rgba(255,255,255,0.95); padding: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; z-index: 50; flex-shrink: 0; }
-        header h1 { margin: 0; font-size: 20px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px; }
+        /* 顶部导航 */
+        header { background: rgba(255,255,255,0.9); backdrop-filter: blur(8px); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; z-index: 50; flex-shrink: 0; }
+        header h1 { margin: 0; font-size: 18px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px; }
 
-        #bookshelf-view { overflow-y: auto; padding: 16px; }
-        .book-list { display: grid; grid-template-columns: 1fr; gap: 16px; padding-bottom: 40px; }
-        @media (min-width: 600px) { .book-list { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); } }
+        /* 书架列表 */
+        #bookshelf-view { overflow-y: auto; padding: 20px; }
+        .book-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; padding-bottom: 40px; }
         
-        /* 书本卡片 */
         .book-card {
             background: var(--bg-card); border-radius: var(--radius); padding: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 2px solid transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05);
             display: flex; justify-content: space-between; align-items: center;
-            height: 100px; position: relative; overflow: hidden; transition: all 0.2s; cursor: pointer;
-            touch-action: manipulation; 
+            height: 90px; position: relative; overflow: hidden; transition: all 0.2s; cursor: pointer;
         }
-        .book-card:active { transform: scale(0.98); background: #f3f4f6; }
+        .book-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         
         .book-info { flex: 1; pointer-events: none; }
-        .book-title { font-weight: 700; font-size: 17px; margin-bottom: 6px; color: #111827; }
+        .book-title { font-weight: 700; font-size: 16px; margin-bottom: 4px; color: #111827; }
         .book-meta { font-size: 13px; color: #9CA3AF; }
-        .book-arrow { font-size: 20px; color: #D1D5DB; margin-left: 10px; }
+        .book-arrow { font-size: 20px; color: #E5E7EB; margin-left: 10px; }
 
-        /* 删除蒙层 */
-        .delete-mask {
+        /* 管理模式遮罩 */
+        .manage-actions {
             display: none; position: absolute; inset: 0; 
-            background: rgba(254, 242, 242, 0.95); 
-            border: 2px solid var(--danger); border-radius: 14px;
-            z-index: 10; align-items: center; justify-content: center;
-            color: var(--danger); font-weight: bold; font-size: 16px;
+            background: rgba(255, 255, 255, 0.95); 
+            z-index: 10; align-items: center; justify-content: center; gap: 10px;
         }
-        .delete-mask:active { background: #FECACA; }
-        body.manage-mode .delete-mask { display: flex; animation: fadeIn 0.2s; }
-        body.manage-mode .book-card { transform: none !important; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        body.manage-mode .manage-actions { display: flex; animation: fadeIn 0.2s; }
+        body.manage-mode .book-card { transform: none !important; cursor: default; }
 
-        /* 训练视图 */
+        /* 训练界面 */
         .full-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background: var(--bg-body); display: flex; flex-direction: column; }
-        .timer-bar { height: 6px; background: #e5e7eb; width: 100%; }
+        .timer-bar { height: 4px; background: #e5e7eb; width: 100%; }
         .timer-progress { height: 100%; background: var(--primary); width: 100%; transition: width 1s linear; }
-        .training-container { flex: 1; overflow-y: auto; padding: 16px; }
+        .training-container { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; }
         
-        /* --- 2. 智能网格布局 --- */
-        .layout-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; transition: all 0.3s ease; }
-        @media (min-width: 768px) {
-            .layout-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; }
-            .layout-grid.mode-expanded { grid-template-columns: repeat(5, 1fr); }
+        /* --- 核心布局修改 --- */
+        .layout-grid { 
+            display: grid; 
+            gap: 15px; 
+            width: 100%;
+            height: 100%;
+            transition: all 0.3s ease; 
         }
-        .layout-list { display: flex; flex-direction: column; gap: 16px; }
+
+        /* 移动端：双列流式布局，怎么舒服怎么来 */
+        @media (max-width: 768px) {
+            .layout-grid {
+                grid-template-columns: repeat(2, 1fr);
+                /* 高度自适应内容，不强制填满屏幕，允许滚动 */
+                grid-auto-rows: 160px; 
+                height: auto; 
+            }
+        }
+
+        /* 电脑/平板：强制双行，列数动态计算 */
+        @media (min-width: 768px) {
+            .training-container { justify-content: center; padding: 40px; }
+            .layout-grid {
+                /* --cols 变量由 JS 计算 (单词数/2) */
+                grid-template-columns: repeat(var(--cols, 4), 1fr);
+                grid-template-rows: repeat(2, 1fr); /* 强制两行 */
+                height: 100%;
+                max-height: 85vh; /* 限制最大高度，防止卡片太大 */
+            }
+            .word-card { height: 100% !important; }
+        }
         
-        /* --- 3. 三态交互卡片样式 --- */
+        /* 卡片组件 */
         .word-card { background: transparent; perspective: 1000px; height: 160px; cursor: pointer; position: relative; touch-action: manipulation; }
+        /* 键盘选中效果 */
+        .word-card.is-keyboard-focus .card-inner { box-shadow: 0 0 0 4px var(--focus-ring), 0 10px 15px -3px rgba(0, 0, 0, 0.1); transform: scale(1.02); z-index: 10; }
         
         .card-inner { 
             position: relative; width: 100%; height: 100%; text-align: center; 
-            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
-            transform-style: preserve-3d; 
-            border-radius: var(--radius); 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); 
+            transform-style: preserve-3d; border-radius: var(--radius); 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); 
         }
-
+        
+        /* 翻转逻辑 */
         .word-card.is-reviewing .card-inner { transform: rotateY(180deg); }
-        .word-card.is-mastered .card-inner { transform: rotateY(0deg); }
+        .word-card.is-mastered .card-inner { transform: rotateY(0deg); } 
+
+        .card-front, .card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: var(--radius); border: 2px solid #e5e7eb; background: white; overflow: hidden; display: flex; flex-direction: column; }
+        .card-front { z-index: 2; background: white; color: var(--text-main); }
+        .card-back { z-index: 1; transform: rotateY(180deg); background: #FFF1F2; border-color: #FECACA; }
+
+        /* 内容布局 */
+        .section-top { 
+            height: 45%; width: 100%; 
+            display: flex; align-items: center; justify-content: center; 
+            padding: 0 10px; 
+            border-bottom: 1px dashed transparent;
+        }
         
-        .card-front, .card-back { 
-            position: absolute; width: 100%; height: 100%; backface-visibility: hidden; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            background: white; border-radius: var(--radius); padding: 10px; 
-            border: 2px solid #e5e7eb;
+        /* 单词文本优化：不换行，自动调整 */
+        .word-text { 
+            font-size: 26px; /* 初始大字号 */
+            font-weight: 800; 
+            color: var(--text-main); 
+            white-space: nowrap; /* 强制不换行 */
+            line-height: 1;
+            padding: 0 5px;
+            /* 配合JS自动缩小 */
         }
 
-        /* 正面样式 */
-        .card-front { z-index: 2; }
-        .word-text { font-size: 20px; font-weight: 800; word-break: break-all; padding: 0 10px; color: var(--text-main); }
+        .section-bottom { height: 55%; width: 100%; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; background: rgba(0,0,0,0.01); }
+        .card-back .section-top { border-bottom-color: #FECACA; }
+        .card-back .word-meaning { font-size: 15px; line-height: 1.6; color: #4B5563; }
         
-        /* 背面样式 */
-        .card-back { 
-            transform: rotateY(180deg); 
-            background: #fff1f2; 
-            border-color: #fca5a5;
-        }
-        .word-meaning { font-size: 15px; color: var(--text-main); overflow-y: auto; max-height: 120px; width: 100%; line-height: 1.5; }
-        
-        .word-card.is-mastered .card-front {
-            border: 3px solid var(--success); 
-            background-color: #ecfdf5;
-        }
-
-        .check-mark {
-            position: absolute; top: 8px; right: 8px;
-            color: var(--success); font-size: 20px; font-weight: bold;
-            opacity: 0; transform: scale(0.5); transition: all 0.2s;
-        }
+        /* 已掌握样式 */
+        .word-card.is-mastered .card-front { border: 3px solid var(--success); background-color: #ECFDF5; }
+        .check-mark { position: absolute; top: 10px; right: 10px; color: var(--success); font-size: 24px; opacity: 0; transform: scale(0.5); transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
         .word-card.is-mastered .check-mark { opacity: 1; transform: scale(1); }
 
-        .hint-text {
-            font-size: 12px; color: #ef4444; margin-top: auto; opacity: 0.8;
-        }
+        .pause-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); backdrop-filter: blur(5px); z-index: 150; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 
-        /* 弹窗 */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 200; backdrop-filter: blur(2px); }
-        .modal { background: white; width: 100%; border-radius: 24px 24px 0 0; padding: 24px; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); max-height: 85vh; overflow-y: auto; animation: slideUp 0.3s ease-out; }
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        @media (min-width: 600px) { .modal-overlay { align-items: center; } .modal { width: 90%; max-width: 400px; border-radius: 20px; animation: fadeIn 0.2s; } }
-        
-        .upload-zone { border: 2px dashed #D1D5DB; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 12px; background: #F9FAFB; transition: 0.2s; cursor: pointer; }
-        .upload-zone.active { border-color: var(--primary); background: #EEF2FF; }
-        textarea { width: 100%; height: 100px; border: 1px solid #E5E7EB; border-radius: 12px; padding: 12px; font-size: 14px; margin-bottom: 10px; background: #F9FAFB; resize: none; }
-        
-        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 10px 20px; border-radius: 30px; font-size: 14px; z-index: 999; pointer-events: none; opacity: 0; transition: opacity 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 8px; width: max-content; }
+        /* 弹窗样式优化 */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+        .modal-overlay:not(.hidden) { opacity: 1; pointer-events: auto; }
+        .modal { background: white; width: 90%; max-width: 420px; border-radius: 20px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); transform: scale(0.95); transition: transform 0.2s; }
+        .modal-overlay:not(.hidden) .modal { transform: scale(1); }
+
+        /* 美化文本框 (优化点) */
+        .code-input {
+            width: 100%; height: 120px; 
+            padding: 12px;
+            background-color: #1e293b; /* 深色背景 */
+            color: #e2e8f0; /* 浅色文字 */
+            font-family: var(--font-mono);
+            font-size: 13px;
+            border: 2px solid #334155;
+            border-radius: 10px;
+            resize: none; outline: none;
+            margin: 10px 0;
+            transition: border-color 0.2s;
+        }
+        .code-input:focus { border-color: var(--primary); }
+        .code-input::placeholder { color: #64748b; }
+
+        .key-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+        .key-badge { background: white; padding: 6px 10px; border-radius: 6px; font-family: var(--font-mono); font-size: 13px; font-weight: bold; border: 1px solid #d1d5db; cursor: pointer; min-width: 70px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .key-badge.recording { background: var(--primary); color: white; border-color: var(--primary); animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(17, 24, 39, 0.95); color: white; padding: 10px 20px; border-radius: 30px; font-size: 14px; font-weight: 500; z-index: 999; pointer-events: none; opacity: 0; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 8px; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
     <div id="bookshelf-view" class="view">
         <header>
-            <button class="btn btn-ghost" onclick="App.toggleManageMode()" id="manage-btn" style="color: var(--text-sub); font-size: 14px;">⚙️ 管理</button>
-            <h1>我的书架</h1>
-            <div style="display: flex; gap: 10px;">
-                <button class="btn btn-ghost" onclick="App.showSyncModal()">☁️</button>
+            <button class="btn btn-ghost" onclick="App.toggleManageMode()" id="manage-btn">⚙️ 管理</button>
+            <h1>单词训练器</h1>
+            <div style="display: flex; gap: 6px;">
+                <button class="btn btn-ghost" onclick="Settings.show()" title="键位">⌨️</button>
+                <button class="btn btn-ghost" onclick="App.showSyncModal()" title="同步">☁️</button>
                 <button class="btn btn-primary" onclick="App.showImportModal()">+ 导入</button>
             </div>
         </header>
@@ -166,72 +207,86 @@
         <header>
             <button class="btn btn-ghost" onclick="App.endTraining()">✕ 退出</button>
             <div style="text-align: center;">
-                <h1 id="train-book-title" style="font-size: 16px;">训练中</h1>
+                <h1 id="train-book-title" style="font-size: 16px; margin:0;">训练中</h1>
                 <span style="font-size: 12px; color: var(--text-sub)">轮次 <span id="round-count">1</span></span>
             </div>
-            <button class="btn btn-ghost" style="color: var(--primary)" onclick="Training.finishBatch()">结算/跳过</button>
+            <button class="btn btn-ghost" id="pause-btn" onclick="Training.togglePause()" style="font-size: 18px;">⏸</button>
         </header>
         
         <div class="timer-bar"><div id="timer-progress" class="timer-progress"></div></div>
         
-        <div style="background: #fff7ed; color: #c2410c; padding: 8px; text-align: center; font-size: 12px; border-bottom: 1px solid #ffedd5;">
-            点击正面看【单词+释义】➜ 再点变绿(已记) ➜ 倒计时结束只结算绿卡
+        <div style="background: #FEF3C7; color: #D97706; padding: 8px; text-align: center; font-size: 12px; border-bottom: 1px solid #FDE68A;">
+            按 <span id="hint-move" style="font-family:var(--font-mono); font-weight:bold;">WASD</span> 移动 · <span id="hint-flip" style="font-family:var(--font-mono); font-weight:bold;">Space</span> 翻转
         </div>
 
         <div id="card-container" class="training-container layout-grid"></div>
         
         <div style="padding: 16px; border-top: 1px solid #eee; background: white; text-align: center;">
-             <button class="btn btn-outline" style="width: 100%" onclick="Training.toggleLayout()">切换视图布局</button>
+             <button class="btn btn-outline" style="width: 100%" id="finish-btn" onclick="Training.finishBatch()">提前结算</button>
+        </div>
+
+        <div id="pause-overlay" class="pause-overlay hidden">
+            <div style="font-size: 40px; margin-bottom: 15px;">⏸</div>
+            <h2 style="color: var(--text-main); margin-top: 0;">训练已暂停</h2>
+            <button class="btn btn-primary" style="margin-top: 10px; padding: 12px 30px;" onclick="Training.togglePause()">继续训练</button>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3 style="margin-top:0">⌨️ 按键设置</h3>
+            <div id="keys-list" style="max-height: 300px; overflow-y: auto;"></div>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn btn-outline" style="flex:1" onclick="Settings.reset()">恢复默认</button>
+                <button class="btn btn-primary" style="flex:1" onclick="App.closeModals()">完成</button>
+            </div>
         </div>
     </div>
 
     <div id="import-modal" class="modal-overlay hidden">
         <div class="modal">
             <h3 style="margin-top:0">导入新书</h3>
-            <div class="upload-zone" onclick="document.getElementById('import-file').click()">
-                <div style="font-size:24px; margin-bottom:5px">📂</div>
-                <div style="color: #666">点击选择文件 (JSON/TXT)</div>
-                <div id="import-file-name" style="font-size:12px; color:var(--primary); margin-top:5px; font-weight:bold;"></div>
+            <input type="file" id="import-file" class="hidden" accept=".json,.txt" onchange="App.handleFileSelect(this)">
+            <button class="btn btn-outline" style="width:100%; border-style:dashed;" onclick="document.getElementById('import-file').click()">📂 选择文件 (TXT)</button>
+            
+            <textarea id="import-text" class="code-input" placeholder="或者直接粘贴文本...&#10;格式示例：&#10;apple 苹果&#10;banana 香蕉"></textarea>
+            
+            <input type="text" id="import-name-input" placeholder="书名 (可选)" style="width:100%; padding:10px; border:2px solid #E5E7EB; border-radius:10px; margin-bottom:15px; outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#E5E7EB'">
+            
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-ghost" style="flex:1" onclick="App.closeModals()">取消</button>
+                <button class="btn btn-primary" style="flex:1" onclick="App.processImport()">确认导入</button>
             </div>
-            <input type="file" id="import-file" class="hidden" accept=".json,.txt" onchange="App.handleFileSelect(this, 'import-file-name', 'import-name-input')">
-            <div style="text-align: center; color:#999; font-size:12px; margin: 10px 0;">— 或粘贴文本 —</div>
-            <input type="text" id="import-name-input" placeholder="书名 (可选)" style="width:100%; padding:12px; border:1px solid #eee; border-radius:8px; margin-bottom:8px;">
-            <textarea id="import-text" placeholder='例如: apple 苹果'></textarea>
-            <button class="btn btn-primary" style="width:100%" onclick="App.processImport()">确认导入</button>
-            <button class="btn btn-ghost" style="width:100%; margin-top:10px" onclick="App.closeModals()">取消</button>
         </div>
     </div>
 
     <div id="sync-modal" class="modal-overlay hidden">
         <div class="modal">
-            <h3 style="margin-top:0">数据备份与恢复</h3>
-            <div style="background: #F3F4F6; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
-                <label style="font-weight:bold; font-size:14px;">📤 导出数据 (旧设备)</label>
-                <div style="display:flex; gap:10px; margin-top:8px;">
-                    <button class="btn btn-outline" style="flex:1; font-size:13px;" onclick="SyncSys.exportData()">📋 复制数据码</button>
-                    <button class="btn btn-outline" style="font-size:13px;" onclick="SyncSys.downloadFile()">💾 下载备份</button>
-                </div>
+            <h3 style="margin-top:0">数据备份 & 恢复</h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button class="btn btn-outline" style="flex:1" onclick="SyncSys.exportData()">📋 复制数据码</button>
+                <button class="btn btn-outline" style="flex:1" onclick="SyncSys.downloadFile()">💾 下载备份</button>
             </div>
-            <div>
-                <label style="font-weight:bold; font-size:14px;">📥 恢复数据 (新设备)</label>
-                <div class="upload-zone" style="padding:15px; margin-top:8px" onclick="document.getElementById('sync-file').click()">
-                    <span>📂 上传备份文件 (推荐)</span>
-                    <div id="sync-file-name" style="font-size:12px; color:var(--primary); font-weight:bold;"></div>
-                </div>
-                <input type="file" id="sync-file" class="hidden" accept=".json" onchange="SyncSys.handleFile(this)">
-                
-                <textarea id="sync-text" placeholder="或在此粘贴数据码..." oninput="SyncSys.previewText(this.value)"></textarea>
-                <div id="sync-preview" style="font-size: 12px; color: var(--text-sub); margin-bottom: 10px; text-align: center; height: 20px;"></div>
-                
-                <button class="btn btn-primary" style="width:100%" onclick="SyncSys.executeImport()">🔄 立即恢复数据</button>
+            
+            <div style="border-top: 1px solid #eee; margin: 15px 0;"></div>
+            <h3 style="margin-top:10px; font-size:16px;">恢复数据</h3>
+            
+            <button class="btn btn-outline" style="width:100%; border-style:dashed; margin-bottom: 10px;" onclick="document.getElementById('sync-file-input').click()">📂 上传备份文件 (.JSON)</button>
+            <input type="file" id="sync-file-input" class="hidden" accept=".json" onchange="SyncSys.handleFile(this)">
+            
+            <textarea id="sync-text" class="code-input" placeholder="粘贴数据码以恢复..."></textarea>
+            
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-ghost" style="flex:1" onclick="App.closeModals()">关闭</button>
+                <button class="btn btn-primary" style="flex:1" onclick="SyncSys.executeImport()">🔄 立即恢复</button>
             </div>
-            <button class="btn btn-ghost" style="width:100%; margin-top:10px" onclick="App.closeModals()">关闭</button>
         </div>
     </div>
 
     <div id="toast">✅ 操作成功</div>
 
 <script>
+// --- 工具类 ---
 const Utils = {
     uuid: () => Date.now().toString(36) + Math.random().toString(36).substr(2),
     toast: (msg, type='success') => {
@@ -240,114 +295,121 @@ const Utils = {
         t.style.opacity = 1; t.style.top = '20px';
         setTimeout(() => { t.style.opacity = 0; t.style.top = '-50px'; }, 2500);
     },
+    // 增强版解析器，兼容多种分隔符
     parseWords: (text) => {
         const words = [];
         try {
+            // 尝试作为JSON解析
             const json = JSON.parse(text);
             const list = Array.isArray(json) ? json : (json.fullContent || []);
             list.forEach(w => { if(w.word && w.meaning) words.push({...w, id: Utils.uuid()}) });
             if(words.length > 0) return words;
         } catch(e) {}
+        
+        // 文本解析
         text.split('\n').forEach(line => {
-            const p = line.split(/[\t,:-]+/);
-            if(p.length >= 2 && p[0].trim().length > 0) words.push({word: p[0].trim(), meaning: p.slice(1).join(' ').trim(), id: Utils.uuid()});
+            line = line.trim();
+            if(!line) return;
+            // 匹配第一个 空格/Tab/冒号 作为分隔符
+            const match = line.match(/^([^\s:：]+)[\s:：]+(.*)/); 
+            if(match) {
+                words.push({word: match[1], meaning: match[2], id: Utils.uuid()});
+            } else {
+                // 兼容没有分隔符的情况，当做只有单词
+                words.push({word: line, meaning: '...', id: Utils.uuid()});
+            }
         });
         return words;
     }
 };
 
+// --- 按键管理 (修复了完成按钮不关闭的问题) ---
+const Settings = {
+    defaults: { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', flip: 'Space', pause: 'KeyP', finish: 'Enter' },
+    keys: {},
+    labels: { up: '⬆️ 上移', down: '⬇️ 下移', left: '⬅️ 左移', right: '➡️ 右移', flip: '🔄 翻转', pause: '⏸ 暂停', finish: '🏁 结算' },
+    init: () => {
+        const stored = localStorage.getItem('app_key_config');
+        Settings.keys = stored ? JSON.parse(stored) : {...Settings.defaults};
+        Settings.updateHints();
+    },
+    save: () => { localStorage.setItem('app_key_config', JSON.stringify(Settings.keys)); Settings.updateHints(); },
+    reset: () => { Settings.keys = {...Settings.defaults}; Settings.save(); Settings.render(); Utils.toast('已恢复默认'); },
+    updateHints: () => {
+        const fmt = (k) => k.replace('Key', '').replace('Digit', '');
+        if(document.getElementById('hint-move')) document.getElementById('hint-move').innerText = fmt(Settings.keys.up)+fmt(Settings.keys.left)+fmt(Settings.keys.down)+fmt(Settings.keys.right);
+        if(document.getElementById('hint-flip')) document.getElementById('hint-flip').innerText = fmt(Settings.keys.flip);
+        document.getElementById('pause-btn').title = `暂停 (${fmt(Settings.keys.pause)})`;
+        document.getElementById('finish-btn').innerText = `提前结算 (${fmt(Settings.keys.finish)})`;
+    },
+    show: () => { document.getElementById('settings-modal').classList.remove('hidden'); Settings.render(); },
+    render: () => {
+        const list = document.getElementById('keys-list'); list.innerHTML = '';
+        for (const [action, code] of Object.entries(Settings.keys)) {
+            const row = document.createElement('div'); row.className = 'key-row';
+            row.innerHTML = `<span>${Settings.labels[action]}</span><div class="key-badge" onclick="Settings.bind('${action}', this)">${code}</div>`;
+            list.appendChild(row);
+        }
+    },
+    bind: (action, btnEl) => {
+        btnEl.innerText = '按下...'; btnEl.classList.add('recording');
+        const handler = (e) => { 
+            e.preventDefault(); e.stopPropagation(); 
+            Settings.keys[action] = e.code; 
+            Settings.save(); Settings.render(); 
+            window.removeEventListener('keydown', handler); 
+        };
+        window.addEventListener('keydown', handler, {once: true});
+    }
+};
+
 const StorageManager = {
     getKey: (id) => id.startsWith('bk_') ? id : 'bk_' + id,
-    save: (id, val) => { try { localStorage.setItem(StorageManager.getKey(id), JSON.stringify(val)); } catch(e) { Utils.toast('存储已满!', 'error'); } },
+    save: (id, val) => { try { localStorage.setItem(StorageManager.getKey(id), JSON.stringify(val)); } catch(e) { Utils.toast('存储空间已满', 'error'); } },
     get: (id) => { try { return JSON.parse(localStorage.getItem(StorageManager.getKey(id))); } catch(e) { return null; } },
     remove: (id) => localStorage.removeItem(StorageManager.getKey(id)),
     getAllBooks: () => {
         const books = [];
-        for(let i=0; i<localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if(k.startsWith('bk_')) { try { const b = JSON.parse(localStorage.getItem(k)); if(b && b.words) books.push(b); } catch(e) {} }
-        }
+        for(let i=0; i<localStorage.length; i++) { const k = localStorage.key(i); if(k.startsWith('bk_')) { try { const b = JSON.parse(localStorage.getItem(k)); if(b && b.words) books.push(b); } catch(e) {} } }
         return books.sort((a,b) => b.isSystem ? 1 : -1);
     }
 };
 
-const AudioSys = {
-    ctx: null,
-    play: () => {
-        if(!AudioSys.ctx) AudioSys.ctx = new (window.AudioContext||window.webkitAudioContext)();
-        if(AudioSys.ctx.state==='suspended') AudioSys.ctx.resume();
-        const osc = AudioSys.ctx.createOscillator();
-        const g = AudioSys.ctx.createGain();
-        osc.connect(g); g.connect(AudioSys.ctx.destination);
-        osc.frequency.setValueAtTime(800, AudioSys.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(400, AudioSys.ctx.currentTime+0.1);
-        g.gain.setValueAtTime(0.1, AudioSys.ctx.currentTime);
-        g.gain.linearRampToValueAtTime(0, AudioSys.ctx.currentTime+0.1);
-        osc.start(); osc.stop(AudioSys.ctx.currentTime+0.1);
-    }
-};
-
 const SyncSys = {
-    tempData: null,
     exportData: () => {
         const data = {};
-        for(let i=0; i<localStorage.length; i++) { const k = localStorage.key(i); if(k.startsWith('bk_') || k==='layout_pref') data[k] = localStorage.getItem(k); }
-        const str = JSON.stringify(data);
-        if(navigator.clipboard) navigator.clipboard.writeText(str).then(()=>Utils.toast('已复制，请发送给新设备'));
-        document.getElementById('sync-text').value = str;
+        for(let i=0; i<localStorage.length; i++) { const k = localStorage.key(i); if(k.startsWith('bk_') || k==='app_key_config') data[k] = localStorage.getItem(k); }
+        navigator.clipboard.writeText(JSON.stringify(data)).then(()=>Utils.toast('已复制到剪贴板'));
     },
     downloadFile: () => {
         const data = {};
-        for(let i=0; i<localStorage.length; i++) { const k = localStorage.key(i); if(k.startsWith('bk_') || k==='layout_pref') data[k] = localStorage.getItem(k); }
-        const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup_${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    },
-    previewText: (str) => {
-        try {
-            const d = JSON.parse(str);
-            const keys = Object.keys(d).filter(k => k.startsWith('bk_'));
-            if(keys.length > 0) {
-                SyncSys.tempData = d;
-                document.getElementById('sync-preview').innerHTML = `<span style="color:var(--success)">✅ 识别到 ${keys.length} 本书</span>`;
-            } else throw new Error();
-        } catch(e) {
-            SyncSys.tempData = null;
-            document.getElementById('sync-preview').innerHTML = `<span style="color:orange">数据解析中...</span>`;
-        }
+        for(let i=0; i<localStorage.length; i++) { const k = localStorage.key(i); if(k.startsWith('bk_') || k==='app_key_config') data[k] = localStorage.getItem(k); }
+        const a = document.createElement('a'); 
+        a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'})); 
+        a.download = `backup_${new Date().toISOString().slice(0,10)}.json`; 
+        a.click();
     },
     handleFile: (input) => {
-        const file = input.files[0];
-        if(!file) return;
-        document.getElementById('sync-file-name').innerText = file.name;
-        document.getElementById('sync-preview').innerHTML = `<span style="color:orange">⌛️ 读取中...</span>`;
-        const reader = new FileReader();
-        reader.onload = (e) => { SyncSys.previewText(e.target.result); };
-        reader.onerror = () => alert('❌ 文件读取失败');
-        reader.readAsText(file);
+        if(input.files[0]) {
+            const r = new FileReader();
+            r.onload = (e) => { document.getElementById('sync-text').value = e.target.result; Utils.toast('文件已读取'); };
+            r.readAsText(input.files[0]);
+        }
     },
     executeImport: () => {
         try {
-            if(!SyncSys.tempData) throw new Error("请先选择文件或粘贴数据");
-            const keysToRemove = [];
-            for(let i=0; i<localStorage.length; i++) {
-                const k = localStorage.key(i);
-                if(k.startsWith('bk_') || k==='layout_pref') keysToRemove.push(k);
-            }
-            keysToRemove.forEach(k => localStorage.removeItem(k));
-            let count = 0;
-            for(const k in SyncSys.tempData) {
-                localStorage.setItem(k, SyncSys.tempData[k]);
-                count++;
-            }
-            alert(`🎉 成功恢复 ${count} 条数据！\n即将刷新页面生效...`);
-            window.location.reload(); 
-        } catch(e) { alert('❌ 恢复失败: ' + e.message); }
+            const str = document.getElementById('sync-text').value;
+            if(!str) throw new Error("内容为空");
+            const d = JSON.parse(str);
+            for(const k in d) localStorage.setItem(k, d[k]);
+            alert('恢复成功！页面即将刷新...'); location.reload();
+        } catch(e) { alert('数据格式错误，请检查'); }
     }
 };
 
 const Training = {
-    queue: [], current: [], timer: null, round: 0,
+    queue: [], current: [], timer: null, round: 0, 
+    hasInteracted: false, isPaused: false, timeLeft: 60, focusIndex: -1,
     
     start: (bookId) => {
         const book = StorageManager.get(bookId);
@@ -357,183 +419,181 @@ const Training = {
         document.getElementById('bookshelf-view').classList.add('hidden');
         document.getElementById('training-view').classList.remove('hidden');
         document.getElementById('train-book-title').innerText = book.name;
-        AudioSys.play();
+        window.addEventListener('keydown', Training.handleKeyDown);
         Training.next();
     },
-    
     next: () => {
         clearInterval(Training.timer);
-        AudioSys.play();
-        
         Training.round++;
         document.getElementById('round-count').innerText = Training.round;
-
-        // 模拟复习逻辑: 每第3轮 (3,6,9...) 加载10个单词触发布局变宽
-        const batchSize = (Training.round % 3 === 0) ? 10 : 8;
-        
+        const batchSize = (Training.round % 3 === 0) ? 10 : 8; // 模拟偶数变化
         const batch = Training.queue.splice(0, batchSize);
-
-        if(!batch.length) { alert('🎉 本轮训练完成！'); App.endTraining(); return; }
-        
-        Training.current = batch.map(w => ({...w, status: 0}));
-        Training.render();
-        
-        let t = 60;
-        const bar = document.getElementById('timer-progress');
-        bar.style.transition='none'; bar.style.width='100%'; bar.offsetHeight; bar.style.transition='width 1s linear';
-        Training.timer = setInterval(() => { t--; bar.style.width = (t/60)*100+'%'; if(t<=0) Training.finishBatch(); }, 1000);
+        if(!batch.length) { alert('🎉 恭喜！本轮训练完成！'); App.endTraining(); return; }
+        Training.current = batch.map(w => ({...w, status: 0})); 
+        Training.hasInteracted = false; Training.focusIndex = -1; Training.timeLeft = 60; Training.isPaused = false;
+        Training.render(); Training.startTimer();
     },
-    
+    startTimer: () => {
+        clearInterval(Training.timer);
+        const bar = document.getElementById('timer-progress');
+        bar.style.transition = 'none'; bar.style.width = (Training.timeLeft/60)*100 + '%'; bar.offsetHeight; bar.style.transition = 'width 1s linear';
+        Training.timer = setInterval(() => {
+            if(Training.isPaused) return; 
+            Training.timeLeft--;
+            bar.style.width = (Training.timeLeft/60)*100+'%'; 
+            if(Training.timeLeft<=0) Training.finishBatch(); 
+        }, 1000);
+    },
+    togglePause: () => {
+        Training.isPaused = !Training.isPaused;
+        const overlay = document.getElementById('pause-overlay');
+        const btn = document.getElementById('pause-btn');
+        if(Training.isPaused) {
+            overlay.classList.remove('hidden'); btn.innerText = "▶️";
+            document.getElementById('timer-progress').style.transition = 'none';
+        } else {
+            overlay.classList.add('hidden'); btn.innerText = "⏸";
+            document.getElementById('timer-progress').style.transition = 'width 1s linear';
+        }
+    },
     finishBatch: () => {
+        if (!Training.hasInteracted && Training.timeLeft <= 0) {
+            alert("⏰ 检测到长时间无操作，已自动退出训练。"); App.endTraining(); return;
+        }
         const notMastered = Training.current.filter(w => w.status !== 2);
-        
         if(notMastered.length) { 
             const mb = StorageManager.get(App.MISTAKE_ID);
-            notMastered.forEach(w => {
-                 if(!mb.words.find(x=>x.word===w.word)) { 
-                     mb.words.unshift({...w, id:Utils.uuid(), status:0}); 
-                 }
-            });
+            notMastered.forEach(w => { if(!mb.words.find(x=>x.word===w.word)) mb.words.unshift({...w, id:Utils.uuid(), status:0}); });
             StorageManager.save(App.MISTAKE_ID, mb);
-
-            Training.queue.push(...notMastered); 
-            Utils.toast(`${notMastered.length} 个单词未掌握，已推后`); 
-        } else {
-            Utils.toast('全对！太棒了');
-        }
-        
+            Training.queue.push(...notMastered); Utils.toast(`${notMastered.length} 个单词未掌握`); 
+        } else { Utils.toast('全对！太棒了'); }
         Training.next();
     },
-    
     handleCardClick: (id) => {
-        const w = Training.current.find(x => x.id === id);
+        if(Training.isPaused) return;
+        Training.hasInteracted = true;
+        const index = Training.current.findIndex(x => x.id === id);
+        if(index === -1) return;
+        const w = Training.current[index];
         const el = document.getElementById('card-' + id);
-        if(!w || !el) return;
+        Training.setFocus(index);
+        
+        // 状态流转: 0(白) -> 1(红) -> 2(绿) -> 1(红)
+        if (w.status === 2) { w.status = 1; el.classList.remove('is-mastered'); el.classList.add('is-reviewing'); }
+        else if (w.status === 1) { w.status = 2; el.classList.remove('is-reviewing'); el.classList.add('is-mastered'); }
+        else { w.status = 1; el.classList.add('is-reviewing'); }
+        
+        if(Training.current.every(x => x.status === 2)) setTimeout(Training.finishBatch, 500);
+    },
+    setFocus: (index) => {
+        if (index < 0 || index >= Training.current.length) return;
+        if(Training.focusIndex !== -1) { const oldEl = document.getElementById('card-' + Training.current[Training.focusIndex].id); if(oldEl) oldEl.classList.remove('is-keyboard-focus'); }
+        Training.focusIndex = index;
+        const newEl = document.getElementById('card-' + Training.current[Training.focusIndex].id);
+        if(newEl) { newEl.classList.add('is-keyboard-focus'); newEl.scrollIntoView({behavior: "smooth", block: "center"}); }
+    },
+    handleKeyDown: (e) => {
+        if(document.getElementById('training-view').classList.contains('hidden')) return;
+        const k = Settings.keys;
+        if (e.code === k.pause) { Training.togglePause(); return; }
+        if(Training.isPaused) return;
+        if (e.code === k.finish) { Training.finishBatch(); return; }
+        
+        // 动态获取列数 (用于键盘上下移动)
+        const isPC = window.innerWidth >= 768;
+        const cols = isPC ? (Training.current.length / 2) : 2;
 
-        if (w.status === 2) {
-            w.status = 1;
-            el.classList.remove('is-mastered');
-            el.classList.add('is-reviewing');
-        } else if (w.status === 1) {
-            w.status = 2;
-            el.classList.remove('is-reviewing');
-            el.classList.add('is-mastered');
-        } else {
-            w.status = 1;
-            el.classList.add('is-reviewing');
-        }
-
-        if(Training.current.every(x => x.status === 2)) {
-            setTimeout(Training.finishBatch, 600);
+        let nextIndex = Training.focusIndex;
+        if (nextIndex === -1 && [k.up, k.down, k.left, k.right].includes(e.code)) { Training.setFocus(0); return; }
+        if (e.code === k.right) { if ((nextIndex + 1) % cols !== 0) nextIndex++; } 
+        else if (e.code === k.left) { if (nextIndex % cols !== 0) nextIndex--; } 
+        else if (e.code === k.down) { if (nextIndex + cols < Training.current.length) nextIndex += cols; } 
+        else if (e.code === k.up) { if (nextIndex - cols >= 0) nextIndex -= cols; } 
+        else if (e.code === k.flip) { e.preventDefault(); if (nextIndex !== -1) Training.handleCardClick(Training.current[nextIndex].id); }
+        if (nextIndex !== Training.focusIndex) Training.setFocus(nextIndex);
+    },
+    
+    // --- 核心修复：自动调整字号 ---
+    adjustFontSize: (el) => {
+        let size = 26; // 初始最大字号
+        el.style.fontSize = size + 'px';
+        const parent = el.parentElement;
+        // 循环减小直到不溢出，且最小12px
+        while ((el.scrollWidth > parent.clientWidth) && size > 12) {
+            size--;
+            el.style.fontSize = size + 'px';
         }
     },
 
     render: () => {
-        const c = document.getElementById('card-container'); 
-        c.innerHTML='';
-
-        c.classList.remove('mode-expanded');
-        if(Training.current.length > 8) {
-            c.classList.add('mode-expanded');
-        }
-
+        const c = document.getElementById('card-container'); c.innerHTML='';
+        // 计算PC端列数变量：总数/2 (例如 8->4, 10->5)
+        c.style.setProperty('--cols', Math.ceil(Training.current.length / 2));
+        
         Training.current.forEach(w => {
-            const el = document.createElement('div'); 
-            el.className='word-card'; 
-            el.id='card-'+w.id;
-            
+            const el = document.createElement('div'); el.className='word-card'; el.id='card-'+w.id;
+            if(w.status === 1) el.classList.add('is-reviewing');
+            if(w.status === 2) el.classList.add('is-mastered');
             el.onclick = () => Training.handleCardClick(w.id);
-
-            // --- 核心修改部分 ---
-            el.innerHTML = `
-                <div class="card-inner">
-                    <div class="card-front">
-                        <div class="check-mark">✅</div>
-                        <div class="word-text">${w.word}</div>
-                    </div>
-                    <div class="card-back">
-                        <div style="font-size:22px; font-weight:800; margin-bottom:10px; color:#1F2937;">${w.word}</div>
-                        <div class="word-meaning">${w.meaning}</div>
-                        <div class="hint-text">(再次点击确认掌握)</div>
-                    </div>
-                </div>
-            `;
+            el.innerHTML = `<div class="card-inner"><div class="card-front"><div class="check-mark">✅</div><div class="section-top"><div class="word-text">${w.word}</div></div><div class="section-bottom"></div></div><div class="card-back"><div class="section-top"><div class="word-text">${w.word}</div></div><div class="section-bottom"><div class="word-meaning">${w.meaning}</div></div></div></div>`;
             c.appendChild(el);
+            // 渲染后调整字号
+            requestAnimationFrame(() => {
+                const texts = el.querySelectorAll('.word-text');
+                texts.forEach(t => Training.adjustFontSize(t));
+            });
         });
-    },
-    
-    toggleLayout: () => {
-        const c = document.getElementById('card-container');
-        c.className = c.className.includes('grid') ? 'training-container layout-list' : 'training-container layout-grid';
     }
 };
 
 const App = {
-    MISTAKE_ID: 'system_mistakes', 
-    isManageMode: false,
-    init: () => {
-        if(!StorageManager.get(App.MISTAKE_ID)) StorageManager.save(App.MISTAKE_ID, {id:App.MISTAKE_ID, name:'📅 错题本', words:[], isSystem:true});
-        App.renderList();
-    },
-    toggleManageMode: () => {
-        App.isManageMode = !App.isManageMode;
-        document.body.classList.toggle('manage-mode', App.isManageMode);
-        document.getElementById('manage-btn').innerText = App.isManageMode ? '完成' : '⚙️ 管理';
-        document.getElementById('manage-btn').style.color = App.isManageMode ? 'var(--primary)' : 'var(--text-sub)';
-        App.renderList();
-    },
-    handleDelete: (bookId, event) => {
+    MISTAKE_ID: 'system_mistakes', isManageMode: false,
+    init: () => { Settings.init(); if(!StorageManager.get(App.MISTAKE_ID)) StorageManager.save(App.MISTAKE_ID, {id:App.MISTAKE_ID, name:'📅 错题本', words:[], isSystem:true}); App.renderList(); },
+    toggleManageMode: () => { App.isManageMode = !App.isManageMode; document.body.classList.toggle('manage-mode', App.isManageMode); document.getElementById('manage-btn').innerText = App.isManageMode ? '完成' : '⚙️ 管理'; document.getElementById('manage-btn').style.color = App.isManageMode ? 'var(--primary)' : 'var(--text-sub)'; App.renderList(); },
+    handleDelete: (bookId, event) => { event.stopPropagation(); if(confirm('确定要删除吗？')) { StorageManager.remove(bookId); App.renderList(); } },
+    handleExport: (bookId, event) => {
         event.stopPropagation();
-        const book = StorageManager.get(bookId);
-        if(book.isSystem) {
-            if(confirm(`⚠️ 警告：这是系统错题本，删除将清空所有错题记录！\n(页面刷新后会生成新的空本子)\n\n确定要清空吗？`)) {
-                StorageManager.remove(bookId);
-                App.renderList();
-                if(bookId === App.MISTAKE_ID) App.init();
-            }
-        } else {
-            if(confirm(`确定要删除《${book.name}》吗？`)) { StorageManager.remove(bookId); App.renderList(); }
-        }
+        const book = StorageManager.get(bookId); if(!book) return;
+        let content = `--- ${book.name} ---\n\n`;
+        const maxLen = Math.max(...book.words.map(w => w.word.length), 10) + 4;
+        book.words.forEach(w => { content += `${w.word.padEnd(maxLen)} ${w.meaning}\n`; });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], {type: 'text/plain'})); a.download = `${book.name}_单词表.txt`; a.click();
     },
     renderList: () => {
         const list = document.getElementById('book-list'); list.innerHTML = '';
         const books = StorageManager.getAllBooks();
         books.forEach(b => {
-            const el = document.createElement('div');
-            el.className = 'book-card';
+            const el = document.createElement('div'); el.className = 'book-card';
             el.onclick = () => { if(!App.isManageMode) Training.start(b.id); };
-            el.innerHTML = `
-                <div class="book-info">
-                    <div class="book-title">${b.name}</div>
-                    <div class="book-meta">${b.words.length} 词 ${b.isSystem?'(系统)':''}</div>
-                </div>
-                <div class="book-arrow">➜</div>
-                <div class="delete-mask" onclick="App.handleDelete('${b.id}', event)">🗑 点击删除</div>
-            `;
+            el.innerHTML = `<div class="book-info"><div class="book-title">${b.name}</div><div class="book-meta">${b.words.length} 词 ${b.isSystem?'(系统)':''}</div></div><div class="book-arrow">➜</div><div class="manage-actions"><button class="btn btn-outline" style="padding:6px 12px; font-size:13px" onclick="App.handleExport('${b.id}', event)">📥 导出</button><button class="btn btn-danger" style="padding:6px 12px; font-size:13px" onclick="App.handleDelete('${b.id}', event)">🗑 删除</button></div>`;
             list.appendChild(el);
         });
         if(books.length === 0) list.innerHTML = '<div style="text-align:center;color:#999;padding:40px">书架是空的</div>';
     },
+    // 修复点：确保读取到文件或文本框内容
     processImport: () => {
         const text = document.getElementById('import-text').value;
         const name = document.getElementById('import-name-input').value;
-        if(text.includes('bk_') && text.includes('layout_pref')) { alert('🛑 错误：这是系统备份文件，请去☁️同步窗口恢复。'); return; }
         const words = Utils.parseWords(text);
-        if(words.length === 0) { Utils.toast('无法识别内容', 'error'); return; }
+        if(words.length === 0) { Utils.toast('内容为空或格式错误', 'error'); return; }
         StorageManager.save(Utils.uuid(), { id: Utils.uuid(), name: name || '新书 '+new Date().toLocaleDateString(), words: words, isSystem: false });
-        App.closeModals(); App.renderList(); Utils.toast(`导入 ${words.length} 个单词`);
+        App.closeModals(); App.renderList(); Utils.toast(`导入 ${words.length} 词`);
     },
     showImportModal: () => { document.getElementById('import-modal').classList.remove('hidden'); },
-    showSyncModal: () => { document.getElementById('sync-modal').classList.remove('hidden'); document.getElementById('sync-preview').innerHTML=''; SyncSys.tempData=null; },
+    showSyncModal: () => { document.getElementById('sync-modal').classList.remove('hidden'); },
     closeModals: () => document.querySelectorAll('.modal-overlay').forEach(e=>e.classList.add('hidden')),
-    handleFileSelect: (input, nameId, textNameId) => {
-        if(input.files[0]) {
-            document.getElementById(nameId).innerText = input.files[0].name;
-            if(textNameId) document.getElementById(textNameId).value = input.files[0].name.replace(/\.[^/.]+$/, "");
-            if(input.id === 'import-file') { const r = new FileReader(); r.onload = (e) => document.getElementById('import-text').value = e.target.result; r.readAsText(input.files[0]); }
-        }
+    // 修复点：文件选择后立即回填到文本框
+    handleFileSelect: (input) => { 
+        if(input.files[0]) { 
+            const r = new FileReader(); 
+            r.onload = (e) => { 
+                document.getElementById('import-text').value = e.target.result; 
+                Utils.toast('文件内容已读取');
+            }; 
+            r.readAsText(input.files[0]); 
+        } 
     },
-    endTraining: () => { clearInterval(Training.timer); document.getElementById('training-view').classList.add('hidden'); document.getElementById('bookshelf-view').classList.remove('hidden'); App.renderList(); }
+    endTraining: () => { clearInterval(Training.timer); window.removeEventListener('keydown', Training.handleKeyDown); document.getElementById('training-view').classList.add('hidden'); document.getElementById('bookshelf-view').classList.remove('hidden'); App.renderList(); }
 };
 
 window.onload = App.init;
