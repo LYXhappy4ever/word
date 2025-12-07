@@ -3,21 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>单词训练器 (数据兼容修复版)</title>
+    <title>单词训练器 (自动生成错题本版)</title>
     <style>
         :root {
             --primary: #4F46E5;
-            --primary-bg: #EEF2FF;
             --bg-body: #F3F4F6;
             --bg-card: #FFFFFF;
             --text-main: #1F2937;
             --text-sub: #6B7280;
-            --danger: #EF4444;
-            --success: #10B981;
+            --danger: #EF4444;  /* 红色：未掌握 */
+            --success: #10B981; /* 绿色：已掌握 */
             --focus-ring: #818cf8;
             --radius: 16px;
             --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         }
 
         html { box-sizing: border-box; -webkit-tap-highlight-color: transparent; scrollbar-gutter: stable; }
@@ -27,10 +26,9 @@
         .btn { border: none; padding: 10px 16px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; outline: none; }
         .btn:active { transform: scale(0.96); }
         .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); }
-        .btn-primary:hover { background: #4338ca; }
         .btn-danger { background: var(--danger); color: white; }
         .btn-ghost { background: transparent; color: var(--text-sub); }
-        .btn-ghost:hover { background: rgba(0,0,0,0.05); color: var(--text-main); }
+        .btn-ghost:hover { background: rgba(0,0,0,0.05); }
         .btn-outline { border: 1px solid #E5E7EB; background: white; color: var(--text-main); }
         .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
         
@@ -38,29 +36,23 @@
         .view { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 
         header { background: rgba(255,255,255,0.9); backdrop-filter: blur(8px); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; z-index: 50; flex-shrink: 0; }
-        header h1 { margin: 0; font-size: 18px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px; }
+        header h1 { margin: 0; font-size: 18px; font-weight: 800; color: var(--text-main); }
 
         #bookshelf-view { overflow-y: auto; padding: 20px; }
-        .book-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; padding-bottom: 40px; }
+        .book-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; padding-bottom: 40px; }
         
         .book-card {
             background: var(--bg-card); border-radius: var(--radius); padding: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.05);
             display: flex; justify-content: space-between; align-items: center;
             height: 90px; position: relative; overflow: hidden; transition: all 0.2s; cursor: pointer;
         }
-        .book-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .book-card:hover { transform: translateY(-2px); box-shadow: 0 8px 15px rgba(0,0,0,0.05); }
         
         .book-info { flex: 1; pointer-events: none; }
         .book-title { font-weight: 700; font-size: 16px; margin-bottom: 4px; color: #111827; }
-        .book-meta { font-size: 13px; color: #9CA3AF; }
-        .book-arrow { font-size: 20px; color: #E5E7EB; margin-left: 10px; }
-
-        .manage-actions {
-            display: none; position: absolute; inset: 0; 
-            background: rgba(255, 255, 255, 0.95); 
-            z-index: 10; align-items: center; justify-content: center; gap: 10px;
-        }
+        .book-arrow { font-size: 18px; color: #E5E7EB; margin-left: 10px; }
+        .manage-actions { display: none; position: absolute; inset: 0; background: rgba(255, 255, 255, 0.95); z-index: 10; align-items: center; justify-content: center; gap: 10px; }
         body.manage-mode .manage-actions { display: flex; animation: fadeIn 0.2s; }
         body.manage-mode .book-card { transform: none !important; cursor: default; }
 
@@ -69,96 +61,76 @@
         .timer-progress { height: 100%; background: var(--primary); width: 100%; transition: width 1s linear; }
         .training-container { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; }
         
-        /* 布局 */
-        .layout-grid { display: grid; gap: 12px; width: 100%; height: 100%; transition: all 0.3s ease; }
-        
-        @media (max-width: 768px) {
-            .layout-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 160px; height: auto; }
-        }
-
-        @media (min-width: 768px) {
+        .layout-grid { display: grid; gap: 15px; width: 100%; height: 100%; transition: all 0.3s ease; }
+        @media (max-width: 768px) { .layout-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 160px; height: auto; } }
+        @media (min-width: 768px) { 
             .training-container { justify-content: center; padding: 40px; }
-            .layout-grid {
-                grid-template-columns: repeat(var(--cols, 4), 1fr);
-                grid-template-rows: repeat(2, 1fr);
-                height: 100%; max-height: 85vh; 
-            }
+            .layout-grid { grid-template-columns: repeat(var(--cols, 4), 1fr); grid-template-rows: repeat(2, 1fr); height: 100%; max-height: 85vh; }
             .word-card { height: 100% !important; }
         }
         
         .word-card { background: transparent; perspective: 1000px; height: 160px; cursor: pointer; position: relative; touch-action: manipulation; }
-        .word-card.is-keyboard-focus .card-inner { box-shadow: 0 0 0 4px var(--focus-ring), 0 10px 15px -3px rgba(0, 0, 0, 0.1); transform: scale(1.02); z-index: 10; }
+        /* 键盘选中高亮 */
+        .word-card.keyboard-focus .card-inner { box-shadow: 0 0 0 4px var(--focus-ring), 0 10px 15px -3px rgba(0, 0, 0, 0.1); transform: scale(1.02); z-index: 10; }
         
         .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); transform-style: preserve-3d; border-radius: var(--radius); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
         
+        /* 状态样式 */
         .word-card.is-reviewing .card-inner { transform: rotateY(180deg); }
-        .word-card.is-mastered .card-inner { transform: rotateY(0deg); } 
+        .word-card.is-mastered .card-inner { transform: rotateY(0deg); } /* 翻回正面 */
 
         .card-front, .card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: var(--radius); border: 2px solid #e5e7eb; background: white; overflow: hidden; display: flex; flex-direction: column; }
         .card-front { z-index: 2; background: white; color: var(--text-main); }
-        .card-back { z-index: 1; transform: rotateY(180deg); background: #FFF1F2; border-color: #FECACA; }
-
-        .section-top { height: 45%; width: 100%; display: flex; align-items: center; justify-content: center; padding: 0 10px; border-bottom: 1px dashed transparent; }
         
-        .word-text { font-size: 24px; font-weight: 800; color: var(--text-main); white-space: nowrap; line-height: 1; padding: 0 5px; }
+        /* 背面(红) */
+        .card-back { z-index: 1; transform: rotateY(180deg); background: #FFF1F2; border-color: var(--danger); }
 
-        .section-bottom { 
-            height: 55%; width: 100%; padding: 10px; 
-            display: flex; flex-direction: column; align-items: center; justify-content: flex-start; 
-            overflow-y: auto; background: rgba(0,0,0,0.01); 
-            /* 防偷看: 默认隐藏 */
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
+        /* 正面(绿) */
+        .word-card.is-mastered .card-front { border: 3px solid var(--success); background-color: #ECFDF5; }
         
-        /* 鼠标悬停或键盘选中时显示 */
-        .word-card:hover .section-bottom,
-        .word-card.is-keyboard-focus .section-bottom { opacity: 1; }
-
-        .card-back .section-top { border-bottom-color: #fca5a5; }
-        .card-back .word-meaning { font-size: 16px; line-height: 1.5; color: #374151; }
-        
-        .word-card.is-mastered .card-front { border: 3px solid var(--success); background-color: #ecfdf5; }
-        .check-mark { position: absolute; top: 8px; right: 8px; color: var(--success); font-size: 20px; opacity: 0; transform: scale(0.5); transition: all 0.2s; }
+        .check-mark { position: absolute; top: 10px; right: 10px; color: var(--success); font-size: 20px; opacity: 0; transform: scale(0.5); transition: all 0.2s; }
         .word-card.is-mastered .check-mark { opacity: 1; transform: scale(1); }
 
-        .pause-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 150; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .section-top { height: 45%; width: 100%; display: flex; align-items: center; justify-content: center; padding: 0 10px; border-bottom: 1px dashed transparent; }
+        .word-text { font-size: 26px; font-weight: 800; color: var(--text-main); white-space: nowrap; line-height: 1; padding: 0 5px; }
+        .section-bottom { 
+            height: 55%; width: 100%; padding: 12px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start; 
+            overflow-y: auto; background: rgba(0,0,0,0.01);
+            opacity: 0; transition: opacity 0.2s ease;
+        }
+        
+        .word-card:hover .section-bottom, .word-card.keyboard-focus .section-bottom { opacity: 1; }
+        .layout-grid.force-show .section-bottom { opacity: 1 !important; }
 
+        .card-back .section-top { border-bottom-color: #FECACA; }
+        .card-back .word-meaning { font-size: 15px; line-height: 1.6; color: #4B5563; }
+        
+        .pause-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 150; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 200; backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
         .modal-overlay:not(.hidden) { opacity: 1; pointer-events: auto; }
         .modal { background: white; width: 90%; max-width: 420px; border-radius: 20px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); transform: scale(0.95); transition: transform 0.2s; }
         .modal-overlay:not(.hidden) .modal { transform: scale(1); }
-
-        .code-input {
-            width: 100%; height: 120px; padding: 12px;
-            background-color: #1e293b; color: #e2e8f0;
-            font-family: var(--font-mono); font-size: 13px;
-            border: 2px solid #334155; border-radius: 10px;
-            resize: none; outline: none; margin: 10px 0;
-            transition: border-color 0.2s;
-        }
-        .code-input:focus { border-color: var(--primary); }
-        .code-input::placeholder { color: #64748b; }
-
+        .code-input { width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 10px; background: #1e293b; color: #e2e8f0; font-family: var(--font-mono); font-size: 13px; resize: none; margin: 10px 0; outline: none; }
+        .styled-input { width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 10px; margin: 10px 0; font-size: 14px; outline: none; }
+        .file-input-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
         .key-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
-        .key-badge { background: white; padding: 6px 10px; border-radius: 6px; font-family: var(--font-mono); font-size: 13px; font-weight: bold; border: 1px solid #d1d5db; cursor: pointer; min-width: 70px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .key-badge { background: white; padding: 6px 10px; border-radius: 6px; font-family: var(--font-mono); font-size: 13px; font-weight: bold; border: 1px solid #d1d5db; cursor: pointer; min-width: 70px; text-align: center; }
         .key-badge.recording { background: var(--primary); color: white; border-color: var(--primary); animation: pulse 1s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-
         #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(17, 24, 39, 0.95); color: white; padding: 10px 20px; border-radius: 30px; font-size: 14px; font-weight: 500; z-index: 999; pointer-events: none; opacity: 0; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 8px; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
     <div id="bookshelf-view" class="view">
         <header>
-            <button class="btn btn-ghost" onclick="App.toggleManageMode()" id="manage-btn">⚙️ 管理</button>
-            <h1>单词训练器</h1>
-            <div style="display: flex; gap: 6px;">
-                <button class="btn btn-ghost" onclick="Settings.show()" title="键位">⌨️</button>
-                <button class="btn btn-ghost" onclick="App.showSyncModal()" title="同步">☁️</button>
-                <button class="btn btn-primary" onclick="App.showImportModal()">+ 导入</button>
+            <button class="btn btn-ghost" onclick="App.toggleManage()" id="manage-btn">⚙️ 管理</button>
+            <h1>我的单词本</h1>
+            <div style="display:flex; gap:5px">
+                <button class="btn btn-ghost" onclick="UI.showModal('settings-modal')">⌨️</button>
+                <button class="btn btn-ghost" onclick="UI.showModal('sync-modal')">☁️</button>
+                <button class="btn btn-primary" onclick="UI.showModal('import-modal')">+ 导入</button>
             </div>
         </header>
         <div id="book-list" class="book-list"></div>
@@ -166,428 +138,373 @@
 
     <div id="training-view" class="full-screen hidden">
         <header>
-            <button class="btn btn-ghost" onclick="App.endTraining()">✕ 退出</button>
+            <button class="btn btn-ghost" onclick="Training.quit()">✕ 退出</button>
             <div style="text-align: center;">
                 <h1 id="train-book-title" style="font-size: 16px; margin:0;">训练中</h1>
-                <span style="font-size: 12px; color: var(--text-sub)">轮次 <span id="round-count">1</span></span>
+                <span style="font-size: 12px; color: var(--text-sub)">轮次 <span id="round-num">1</span></span>
             </div>
-            <button class="btn btn-ghost" id="pause-btn" onclick="Training.togglePause()" style="font-size: 18px;">⏸</button>
+            <div style="display:flex; gap:5px">
+                <button class="btn btn-ghost" id="mode-btn" onclick="Training.toggleMode()">👁️ 悬停</button>
+                <button class="btn btn-ghost" id="pause-btn" onclick="Training.togglePause()">⏸</button>
+            </div>
         </header>
-        
         <div class="timer-bar"><div id="timer-progress" class="timer-progress"></div></div>
-        
-        <div style="background: #FEF3C7; color: #D97706; padding: 8px; text-align: center; font-size: 12px; border-bottom: 1px solid #FDE68A;">
-            提示: 反转后需<b>鼠标悬停</b>或<b>键盘选中</b>才能看释义
+        <div style="background:#fff7ed; color:#c2410c; padding:8px; text-align:center; font-size:12px;">提示: 一次翻转标红(未掌握)，二次翻转标绿(已掌握)</div>
+        <div class="training-container">
+            <div id="card-container" class="layout-grid"></div>
         </div>
-
-        <div id="card-container" class="training-container layout-grid"></div>
-        
-        <div style="padding: 16px; border-top: 1px solid #eee; background: white; text-align: center;">
-             <button class="btn btn-outline" style="width: 100%" id="finish-btn" onclick="Training.finishBatch()">提前结算</button>
+        <div style="padding:15px; background:white; border-top:1px solid #eee; text-align:center;">
+            <button class="btn btn-outline" style="width:100%" id="finish-btn" onclick="Training.finish()">提前结算</button>
         </div>
-
-        <div id="pause-overlay" class="pause-overlay hidden">
+        <div id="pause-overlay" class="hidden">
             <div style="font-size: 40px; margin-bottom: 15px;">⏸</div>
             <h2 style="color: var(--text-main); margin-top: 0;">训练已暂停</h2>
-            <button class="btn btn-primary" style="margin-top: 10px; padding: 12px 30px;" onclick="Training.togglePause()">继续训练</button>
-        </div>
-    </div>
-
-    <div id="settings-modal" class="modal-overlay hidden">
-        <div class="modal">
-            <h3 style="margin-top:0">⌨️ 按键设置</h3>
-            <div id="keys-list" style="max-height: 300px; overflow-y: auto;"></div>
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button class="btn btn-outline" style="flex:1" onclick="Settings.reset()">恢复默认</button>
-                <button class="btn btn-primary" style="flex:1" onclick="App.closeModals()">完成</button>
-            </div>
+            <button class="btn btn-primary" onclick="Training.togglePause()" style="padding: 12px 30px; margin-top:10px;">继续训练</button>
         </div>
     </div>
 
     <div id="import-modal" class="modal-overlay hidden">
         <div class="modal">
-            <h3 style="margin-top:0">导入新书</h3>
-            <input type="file" id="import-file" class="hidden" accept=".json,.txt" onchange="App.handleFileSelect(this)">
-            <button class="btn btn-outline" style="width:100%; border-style:dashed;" onclick="document.getElementById('import-file').click()">📂 选择文件 (TXT/JSON)</button>
-            <textarea id="import-text" class="code-input" placeholder="或者直接粘贴文本...&#10;格式示例：&#10;apple 苹果&#10;banana 香蕉"></textarea>
-            <input type="text" id="import-name-input" placeholder="书名 (可选)" style="width:100%; padding:10px; border:2px solid #E5E7EB; border-radius:10px; margin-bottom:15px; outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='#E5E7EB'">
-            <div style="display:flex; gap:10px;">
-                <button class="btn btn-ghost" style="flex:1" onclick="App.closeModals()">取消</button>
-                <button class="btn btn-primary" style="flex:1" onclick="App.processImport()">确认导入</button>
+            <h3>导入新书</h3>
+            <div style="margin-bottom:10px">
+                <button class="btn btn-outline" onclick="document.getElementById('file-input').click()" style="width:100%">📂 选择文件 (TXT)</button>
+                <input type="file" id="file-input" class="file-input-hidden" onchange="Data.readFile(this, 'import-text')" onclick="this.value=null">
+            </div>
+            <textarea id="import-text" class="code-input" rows="5" placeholder="或在此粘贴文本...&#10;格式: apple 苹果"></textarea>
+            <input type="text" id="import-name" class="styled-input" placeholder="书名 (可选)">
+            <div style="display:flex; gap:10px; margin-top:10px">
+                <button class="btn btn-ghost" style="flex:1" onclick="UI.closeModals()">取消</button>
+                <button class="btn btn-primary" style="flex:1" onclick="Data.importBook()">确认</button>
             </div>
         </div>
     </div>
-
     <div id="sync-modal" class="modal-overlay hidden">
         <div class="modal">
-            <h3 style="margin-top:0">数据备份 & 恢复</h3>
-            <div class="upload-btn-group" style="display:flex; gap:10px; margin-bottom:15px;">
-                <button class="btn btn-outline" style="flex:1" onclick="SyncSys.exportData()">📋 复制数据</button>
-                <button class="btn btn-outline" style="flex:1" onclick="SyncSys.downloadFile()">💾 下载备份</button>
+            <h3>数据备份与恢复</h3>
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <button class="btn btn-outline" style="flex:1" onclick="SyncSys.exportData()">📋 复制</button>
+                <button class="btn btn-outline" style="flex:1" onclick="SyncSys.downloadFile()">💾 下载</button>
             </div>
-            <div style="border-top: 1px solid #eee; margin: 15px 0;"></div>
-            <h3 style="margin-top:10px; font-size:16px;">恢复数据</h3>
-            <button class="btn btn-outline" style="width:100%; border-style:dashed; margin-bottom: 10px;" onclick="document.getElementById('sync-file-input').click()">📂 上传备份文件 (.JSON)</button>
-            <input type="file" id="sync-file-input" class="hidden" accept=".json" onchange="SyncSys.handleFile(this)">
-            <textarea id="sync-text" class="code-input" placeholder="粘贴数据码以恢复..."></textarea>
-            <div style="display:flex; gap:10px;">
-                <button class="btn btn-ghost" style="flex:1" onclick="App.closeModals()">关闭</button>
-                <button class="btn btn-primary" style="flex:1" onclick="SyncSys.executeImport()">🔄 立即恢复</button>
+            <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
+            <div style="margin-bottom:10px;">
+                <button class="btn btn-outline" style="width:100%" onclick="document.getElementById('backup-file-input').click()">📂 上传备份文件</button>
+                <input type="file" id="backup-file-input" class="file-input-hidden" onchange="Data.readFile(this, 'sync-text')" onclick="this.value=null">
+            </div>
+            <textarea id="sync-text" class="code-input" rows="4" placeholder="粘贴数据码..."></textarea>
+            <div style="display:flex; gap:10px; margin-top:10px">
+                <button class="btn btn-ghost" style="flex:1" onclick="UI.closeModals()">关闭</button>
+                <button class="btn btn-primary" style="flex:1" onclick="SyncSys.executeImport()">恢复</button>
             </div>
         </div>
     </div>
-
-    <div id="toast">✅ 操作成功</div>
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3>按键设置</h3>
+            <div id="keys-list" style="max-height:300px; overflow-y:auto"></div>
+            <button class="btn btn-primary" style="width:100%; margin-top:15px" onclick="UI.closeModals()">完成</button>
+        </div>
+    </div>
+    <div id="toast"></div>
 
 <script>
-const Utils = {
-    uuid: () => Date.now().toString(36) + Math.random().toString(36).substr(2),
+const UI = {
     toast: (msg, type='success') => {
         const t = document.getElementById('toast');
-        t.innerHTML = (type==='error'?'❌ ':'✅ ') + msg;
-        t.style.opacity = 1; t.style.top = '20px';
-        setTimeout(() => { t.style.opacity = 0; t.style.top = '-50px'; }, 2500);
+        t.innerText = msg; t.style.opacity = 1; t.style.top = '20px';
+        setTimeout(() => { t.style.opacity = 0; t.style.top = '-50px'; }, 2000);
     },
-    parseWords: (text) => {
-        const words = [];
-        try {
-            const json = JSON.parse(text);
-            const list = Array.isArray(json) ? json : (json.fullContent || []);
-            list.forEach(w => { if(w.word && w.meaning) words.push({...w, id: Utils.uuid()}) });
-            if(words.length > 0) return words;
-        } catch(e) {}
-        text.split('\n').forEach(line => {
-            line = line.trim();
-            if(!line) return;
-            const match = line.match(/^([^\s:：]+)[\s:：]+(.*)/); 
-            if(match) {
-                words.push({word: match[1], meaning: match[2], id: Utils.uuid()});
-            } else {
-                words.push({word: line, meaning: '...', id: Utils.uuid()});
-            }
+    showModal: (id) => document.getElementById(id).classList.remove('hidden'),
+    closeModals: () => document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden')),
+    renderBooks: () => {
+        const list = document.getElementById('book-list'); list.innerHTML = '';
+        State.books.forEach(book => {
+            const el = document.createElement('div'); el.className = 'book-card';
+            el.innerHTML = `<div class="book-info"><h3>${book.name}</h3><span>${book.words.length} 词</span></div><div class="book-arrow">➜</div><div class="manage-actions"><button class="btn btn-danger" onclick="Data.deleteBook('${book.id}', event)">删除</button><button class="btn btn-outline" onclick="Data.exportTxt('${book.id}', event)">TXT</button></div>`;
+            el.onclick = () => !document.body.classList.contains('manage-mode') && Training.start(book.id);
+            list.appendChild(el);
         });
-        return words;
-    }
-};
-
-const Settings = {
-    defaults: { up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD', flip: 'Space', pause: 'KeyP', finish: 'Enter' },
-    keys: {},
-    labels: { up: '⬆️ 上移', down: '⬇️ 下移', left: '⬅️ 左移', right: '➡️ 右移', flip: '🔄 翻转', pause: '⏸ 暂停', finish: '🏁 结算' },
-    init: () => {
-        const stored = localStorage.getItem('app_key_config');
-        Settings.keys = stored ? JSON.parse(stored) : {...Settings.defaults};
-        Settings.updateHints();
+        if(State.books.length === 0) list.innerHTML = '<div style="text-align:center; padding:20px; color:#999; grid-column:1/-1">暂无单词书，请导入</div>';
     },
-    save: () => { localStorage.setItem('app_key_config', JSON.stringify(Settings.keys)); Settings.updateHints(); },
-    reset: () => { Settings.keys = {...Settings.defaults}; Settings.save(); Settings.render(); Utils.toast('已恢复默认'); },
-    updateHints: () => {
-        const fmt = (k) => k.replace('Key', '').replace('Digit', '');
-        document.getElementById('pause-btn').title = `暂停 (${fmt(Settings.keys.pause)})`;
-        document.getElementById('finish-btn').innerText = `提前结算 (${fmt(Settings.keys.finish)})`;
-    },
-    show: () => { document.getElementById('settings-modal').classList.remove('hidden'); Settings.render(); },
-    render: () => {
+    renderKeys: () => {
         const list = document.getElementById('keys-list'); list.innerHTML = '';
-        for (const [action, code] of Object.entries(Settings.keys)) {
+        const labels = { up:'上移', down:'下移', left:'左移', right:'右移', flip:'翻转', pause:'暂停', finish:'结算' };
+        for(let action in State.keys) {
             const row = document.createElement('div'); row.className = 'key-row';
-            row.innerHTML = `<span>${Settings.labels[action]}</span><div class="key-badge" onclick="Settings.bind('${action}', this)">${code}</div>`;
+            row.innerHTML = `<span>${labels[action]}</span> <div class="key-badge" onclick="UI.bindKey('${action}', this)">${State.keys[action]}</div>`;
             list.appendChild(row);
         }
     },
-    bind: (action, btnEl) => {
-        btnEl.innerText = '按下...'; btnEl.classList.add('recording');
-        const handler = (e) => { 
-            e.preventDefault(); e.stopPropagation(); 
-            Settings.keys[action] = e.code; 
-            Settings.save(); Settings.render(); 
-            window.removeEventListener('keydown', handler); 
-        };
-        window.addEventListener('keydown', handler, {once: true});
+    bindKey: (action, btn) => {
+        btn.innerText = '...'; btn.classList.add('recording');
+        const handler = (e) => { e.preventDefault(); State.keys[action] = e.code; localStorage.setItem('app_keys', JSON.stringify(State.keys)); UI.renderKeys(); window.removeEventListener('keydown', handler); };
+        window.addEventListener('keydown', handler, {once:true});
     }
 };
 
-// --- 数据存储 (兼容性修复版) ---
-const StorageManager = {
-    getKey: (id) => id.startsWith('bk_') ? id : 'bk_' + id,
-    save: (id, val) => { try { localStorage.setItem(StorageManager.getKey(id), JSON.stringify(val)); } catch(e) { Utils.toast('存储空间已满', 'error'); } },
-    get: (id) => { try { return JSON.parse(localStorage.getItem(StorageManager.getKey(id))); } catch(e) { return null; } },
-    remove: (id) => localStorage.removeItem(StorageManager.getKey(id)),
-    getAllBooks: () => {
-        const books = [];
-        // 尝试从新版统一结构读取
-        const legacyBooks = [];
-        for(let i=0; i<localStorage.length; i++) { 
-            const k = localStorage.key(i); 
-            if(k.startsWith('bk_')) { 
-                try { 
-                    const b = JSON.parse(localStorage.getItem(k)); 
-                    if(b && b.words) legacyBooks.push(b); 
-                } catch(e) {} 
-            } 
-        }
-        // 如果有 State.books (统一管理)，优先用，否则用分散的 keys
-        if(App.globalBooks && App.globalBooks.length > 0) return App.globalBooks;
-        return legacyBooks.sort((a,b) => b.isSystem ? 1 : -1);
-    }
+const State = {
+    books: [],
+    keys: { up:'KeyW', down:'KeyS', left:'KeyA', right:'KeyD', flip:'Space', pause:'KeyP', finish:'Enter' },
+    training: { queue: [], currentBatch: [], timer: null, timeLeft: 60, round: 1, paused: false, focusIndex: -1, hasInteracted: false, alwaysShow: false, sessionMistakes: [] }
 };
 
-// --- 增强版同步系统 (修复兼容性) ---
-const SyncSys = {
-    exportData: () => {
-        const data = {};
-        for(let i=0; i<localStorage.length; i++) { const k = localStorage.key(i); if(k.startsWith('bk_') || k==='app_key_config') data[k] = localStorage.getItem(k); }
-        navigator.clipboard.writeText(JSON.stringify(data)).then(()=>Utils.toast('已复制到剪贴板'));
+const Data = {
+    init: () => {
+        const stored = localStorage.getItem('app_data');
+        if(stored) State.books = JSON.parse(stored);
+        else { State.books = []; Data.save(); }
+        const keys = localStorage.getItem('app_keys');
+        if(keys) State.keys = JSON.parse(keys);
+        UI.renderBooks(); UI.renderKeys();
     },
-    downloadFile: () => {
-        const data = {};
-        for(let i=0; i<localStorage.length; i++) { const k = localStorage.key(i); if(k.startsWith('bk_') || k==='app_key_config') data[k] = localStorage.getItem(k); }
-        const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup.json`; a.click();
+    save: () => localStorage.setItem('app_data', JSON.stringify(State.books)),
+    parseWords: (text) => {
+        const words = [];
+        text.split('\n').forEach(line => {
+            const parts = line.trim().split(/[:\s\t]+(.+)/);
+            if(parts.length >= 2) words.push({ word: parts[0], meaning: parts[1], id: Date.now()+Math.random() });
+        });
+        return words;
     },
-    handleFile: (input) => {
-        if(input.files[0]) {
+    readFile: (input, targetId) => {
+        if(input.files && input.files[0]) {
             const r = new FileReader();
-            r.onload = (e) => { document.getElementById('sync-text').value = e.target.result; Utils.toast('文件已读取'); };
+            r.onload = (e) => { document.getElementById(targetId).value = e.target.result; UI.toast('已读取'); };
             r.readAsText(input.files[0]);
         }
     },
-    executeImport: () => {
+    importBook: () => {
+        const text = document.getElementById('import-text').value;
+        const name = document.getElementById('import-name').value || '新单词书';
+        if(!text.trim()) return UI.toast('内容为空');
+        let words = [];
         try {
-            const str = document.getElementById('sync-text').value;
-            if(!str) throw new Error("空内容");
-            
-            let parsed;
-            try { parsed = JSON.parse(str); } catch(e) { throw new Error("JSON 格式错误"); }
-
-            // 兼容性判断：是新版数组，还是旧版对象？
-            if (Array.isArray(parsed)) {
-                // 如果是直接导出的 books 数组 (极少情况，通常是 localStorage dump)
-                alert("检测到纯数组格式，请确认这是有效的书籍列表。建议使用标准备份。");
-            } else {
-                // 标准 LocalStorage Dump (对象格式)
-                let count = 0;
-                for(const k in parsed) {
-                    // 只恢复单词书和配置
-                    if(k.startsWith('bk_') || k === 'app_key_config') {
-                        localStorage.setItem(k, parsed[k]);
-                        count++;
-                    }
-                }
-                if(count === 0) throw new Error("未找到有效数据");
-            }
-            
-            alert('恢复成功！页面即将刷新...'); location.reload();
-        } catch(e) { alert('恢复失败: ' + e.message); }
+            const json = JSON.parse(text);
+            if(Array.isArray(json)) json.forEach(w => { if(w.word || w.w) words.push({ word: w.word||w.w, meaning: w.meaning||w.m, id: Date.now()+Math.random() }) });
+        } catch(e) { words = Data.parseWords(text); }
+        if(words.length === 0) return UI.toast('格式错误');
+        State.books.push({ id: Date.now().toString(), name: name, words: words });
+        Data.save(); UI.renderBooks(); UI.closeModals(); UI.toast(`导入 ${words.length} 词`);
+    },
+    deleteBook: (id, e) => { e.stopPropagation(); if(confirm('确定删除？')) { State.books = State.books.filter(b => b.id !== id); Data.save(); UI.renderBooks(); } },
+    exportTxt: (id, e) => {
+        e.stopPropagation();
+        const book = State.books.find(b => b.id === id);
+        let c = `--- ${book.name} ---\n`; book.words.forEach(w => c += `${w.word} ${w.meaning}\n`);
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([c], {type:'text/plain'})); a.download = `${book.name}.txt`; a.click();
+    },
+    importAll: () => {
+        try {
+            const d = JSON.parse(document.getElementById('sync-text').value);
+            if(Array.isArray(d)) State.books = d;
+            else { State.books = []; for(let k in d) if(k.startsWith('bk_')) State.books.push(JSON.parse(d[k])); }
+            Data.save(); UI.renderBooks(); UI.closeModals(); UI.toast('恢复成功');
+        } catch(e) { UI.toast('数据格式错误'); }
     }
 };
 
+const SyncSys = {
+    exportData: () => { navigator.clipboard.writeText(JSON.stringify(State.books)); UI.toast('已复制'); },
+    downloadFile: () => {
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(State.books)], {type:'application/json'})); a.download = 'backup.json'; a.click();
+    },
+    executeImport: Data.importAll 
+};
+
+// --- Training Logic ---
 const Training = {
-    queue: [], current: [], timer: null, round: 0, 
-    hasInteracted: false, isPaused: false, timeLeft: 60, focusIndex: -1,
-    
     start: (bookId) => {
-        const book = StorageManager.get(bookId);
-        if(!book || !book.words.length) { Utils.toast('这本书是空的', 'error'); return; }
-        Training.queue = [...book.words].sort(()=>0.5-Math.random());
-        Training.round = 0;
+        const book = State.books.find(b => b.id === bookId);
+        if(!book || book.words.length === 0) return UI.toast('空书');
+        State.training.queue = [...book.words].sort(()=>0.5-Math.random());
+        State.training.round = 0;
+        State.training.sessionMistakes = []; // 初始化本次错题
+        State.training.alwaysShow = false; 
+        Training.updateModeUI();
         document.getElementById('bookshelf-view').classList.add('hidden');
         document.getElementById('training-view').classList.remove('hidden');
         document.getElementById('train-book-title').innerText = book.name;
-        window.addEventListener('keydown', Training.handleKeyDown);
-        Training.next();
+        window.addEventListener('keydown', Training.onKey);
+        Training.nextRound();
     },
-    next: () => {
-        clearInterval(Training.timer);
-        Training.round++;
-        document.getElementById('round-count').innerText = Training.round;
-        const batchSize = (Training.round % 3 === 0) ? 10 : 8; 
-        const batch = Training.queue.splice(0, batchSize);
-        if(!batch.length) { alert('🎉 恭喜！本轮训练完成！'); App.endTraining(); return; }
-        Training.current = batch.map(w => ({...w, status: 0})); 
-        Training.hasInteracted = false; Training.focusIndex = -1; Training.timeLeft = 60; Training.isPaused = false;
-        Training.render(); Training.startTimer();
+    
+    // 生成错题本核心逻辑
+    saveSessionMistakes: () => {
+        const mistakes = State.training.sessionMistakes;
+        if (mistakes.length > 0) {
+            const now = new Date();
+            const timeStr = `${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            const newBookName = `📅 错题 ${timeStr}`;
+            // 去重（虽然流程上一般不会有重复，保险起见）
+            const uniqueMistakes = [];
+            const seen = new Set();
+            mistakes.forEach(w => { if(!seen.has(w.word)) { seen.add(w.word); uniqueMistakes.push(w); }});
+            
+            const newBook = { id: 'err_' + Date.now(), name: newBookName, words: uniqueMistakes };
+            State.books.unshift(newBook); // 添加到最前面
+            Data.save();
+            UI.toast(`生成: ${newBookName}`);
+        }
     },
-    startTimer: () => {
-        clearInterval(Training.timer);
-        const bar = document.getElementById('timer-progress');
-        bar.style.transition = 'none'; bar.style.width = (Training.timeLeft/60)*100 + '%'; bar.offsetHeight; bar.style.transition = 'width 1s linear';
-        Training.timer = setInterval(() => {
-            if(Training.isPaused) return; 
-            Training.timeLeft--;
-            bar.style.width = (Training.timeLeft/60)*100+'%'; 
-            if(Training.timeLeft<=0) Training.finishBatch(); 
-        }, 1000);
+
+    toggleMode: () => {
+        State.training.alwaysShow = !State.training.alwaysShow;
+        Training.updateModeUI();
+    },
+    updateModeUI: () => {
+        const btn = document.getElementById('mode-btn');
+        const container = document.getElementById('card-container');
+        if(State.training.alwaysShow) {
+            btn.innerText = '👁️ 固定';
+            btn.style.color = 'var(--primary)';
+            container.classList.add('force-show');
+        } else {
+            btn.innerText = '👁️ 悬停';
+            btn.style.color = 'var(--text-sub)';
+            container.classList.remove('force-show');
+        }
+    },
+    nextRound: () => {
+        const t = State.training;
+        if(t.queue.length === 0) { alert('训练完成！自动保存错题。'); return Training.quit(); }
+        t.round++; document.getElementById('round-num').innerText = t.round;
+        const batchSize = (t.round % 3 === 0) ? 10 : 8;
+        t.currentBatch = t.queue.splice(0, batchSize).map(w => ({ ...w, status: 0 }));
+        t.focusIndex = -1; t.hasInteracted = false; t.timeLeft = 60; t.paused = false;
+        Training.renderCards(); 
+        Training.startTimer();
+    },
+    renderCards: () => {
+        const c = document.getElementById('card-container'); c.innerHTML = '';
+        const words = State.training.currentBatch;
+        if(window.innerWidth >= 768) c.style.gridTemplateColumns = `repeat(${Math.ceil(words.length/2)}, 1fr)`;
+        words.forEach((item, index) => {
+            const el = document.createElement('div'); el.className = 'word-card';
+            Training.applyCardClasses(el, item, index);
+            el.innerHTML = `<div class="card-inner">
+                <div class="card-front"><div class="check-mark">✅</div><div class="section-top"><div class="word-text">${item.word}</div></div><div class="section-bottom"></div></div>
+                <div class="card-back"><div class="section-top"><div class="word-text">${item.word}</div></div><div class="section-bottom"><div class="word-meaning">${item.meaning}</div></div></div>
+            </div>`;
+            el.onclick = () => Training.handleClick(index);
+            c.appendChild(el);
+            setTimeout(() => el.querySelectorAll('.word-text').forEach(t => Training.fitText(t)), 0);
+        });
+    },
+    applyCardClasses: (el, item, index) => {
+        el.classList.remove('flipped', 'is-reviewing', 'is-mastered', 'keyboard-focus');
+        if(item.status === 1) el.classList.add('flipped', 'is-reviewing');
+        if(item.status === 2) el.classList.add('is-mastered');
+        if(index === State.training.focusIndex) el.classList.add('keyboard-focus');
+    },
+    updateSingleCardUI: (index) => {
+        const el = document.getElementById('card-container').children[index];
+        if(el) Training.applyCardClasses(el, State.training.currentBatch[index], index);
+    },
+    fitText: (el) => {
+        let size = 26; el.style.fontSize = size + 'px';
+        const w = el.parentElement.offsetWidth - 10;
+        while(el.scrollWidth > w && size > 12) { size--; el.style.fontSize = size + 'px'; }
+    },
+    handleClick: (index) => {
+        if(State.training.paused) return;
+        const oldFocus = State.training.focusIndex;
+        if(oldFocus !== -1 && oldFocus !== index) { State.training.focusIndex = -1; Training.updateSingleCardUI(oldFocus); }
+        State.training.focusIndex = -1; 
+        State.training.hasInteracted = true;
+        Training.toggleStatus(index);
+        Training.updateSingleCardUI(index);
+    },
+    toggleStatus: (index) => {
+        const item = State.training.currentBatch[index];
+        if(item.status === 0) item.status = 1;
+        else if(item.status === 1) item.status = 2;
+        else if(item.status === 2) item.status = 1;
+        if(State.training.currentBatch.every(w => w.status === 2)) setTimeout(Training.finish, 500);
+    },
+    onKey: (e) => {
+        if(State.training.paused) return;
+        const k = State.training; const keys = State.keys;
+        const cols = (window.innerWidth >= 768) ? Math.ceil(k.currentBatch.length/2) : 2;
+        let next = k.focusIndex; const oldIndex = k.focusIndex; 
+        if(e.code === keys.pause) return Training.togglePause();
+        if(e.code === keys.finish) return Training.finish();
+        if(next === -1 && [keys.up, keys.down, keys.left, keys.right].includes(e.code)) { 
+            k.focusIndex = 0; Training.updateSingleCardUI(0); return; 
+        }
+        if(e.code === keys.right) { if((next+1)%cols !== 0) next++; }
+        else if(e.code === keys.left) { if(next%cols !== 0) next--; }
+        else if(e.code === keys.down) { if(next+cols < k.currentBatch.length) next += cols; }
+        else if(e.code === keys.up) { if(next-cols >= 0) next -= cols; }
+        else if(e.code === keys.flip) {
+            e.preventDefault();
+            if(next !== -1) { k.hasInteracted = true; Training.toggleStatus(next); Training.updateSingleCardUI(next); }
+        }
+        if(next !== oldIndex) { 
+            k.focusIndex = next; 
+            if(oldIndex !== -1) Training.updateSingleCardUI(oldIndex);
+            Training.updateSingleCardUI(next);
+        }
     },
     togglePause: () => {
-        Training.isPaused = !Training.isPaused;
-        const overlay = document.getElementById('pause-overlay');
-        const btn = document.getElementById('pause-btn');
-        if(Training.isPaused) {
-            overlay.classList.remove('hidden'); btn.innerText = "▶️";
-            document.getElementById('timer-progress').style.transition = 'none';
+        const t = State.training; t.paused = !t.paused;
+        const o = document.getElementById('pause-overlay');
+        const b = document.getElementById('pause-btn');
+        if(t.paused) { o.classList.remove('hidden'); b.innerText = '▶️'; clearInterval(t.timer); }
+        else { o.classList.add('hidden'); b.innerText = '⏸'; Training.startTimer(); }
+    },
+    startTimer: () => {
+        clearInterval(State.training.timer);
+        const bar = document.getElementById('timer-progress');
+        bar.style.transition = 'width 1s linear'; bar.style.width = (State.training.timeLeft/60)*100 + '%';
+        State.training.timer = setInterval(() => {
+            const t = State.training; if(t.paused) return;
+            t.timeLeft--; bar.style.width = (t.timeLeft/60)*100 + '%';
+            if(t.timeLeft <= 0) Training.finish();
+        }, 1000);
+    },
+    finish: () => {
+        const t = State.training;
+        if(!t.hasInteracted && t.timeLeft <= 0) { alert('超时自动退出'); return Training.quit(); }
+        const failed = t.currentBatch.filter(w => w.status !== 2);
+        
+        // --- 错题收集逻辑 ---
+        if(failed.length > 0) {
+            // 将未掌握单词加入本次错题集 (如果还没加过)
+            failed.forEach(w => {
+                // 注意：这里我们收集单词的原始信息
+                if (!t.sessionMistakes.some(sw => sw.word === w.word)) {
+                    t.sessionMistakes.push({ word: w.word, meaning: w.meaning, id: Date.now() + Math.random() });
+                }
+            });
+            // 重新加入队列尾部进行循环训练
+            t.queue.push(...failed);
+            UI.toast(`${failed.length} 个单词未掌握`);
         } else {
-            overlay.classList.add('hidden'); btn.innerText = "⏸";
-            document.getElementById('timer-progress').style.transition = 'width 1s linear';
+            UI.toast('全对！');
         }
-    },
-    finishBatch: () => {
-        if (!Training.hasInteracted && Training.timeLeft <= 0) {
-            alert("⏰ 检测到长时间无操作，已自动退出训练。"); App.endTraining(); return;
-        }
-        const notMastered = Training.current.filter(w => w.status !== 2);
-        if(notMastered.length) { 
-            const mb = StorageManager.get(App.MISTAKE_ID);
-            notMastered.forEach(w => { if(!mb.words.find(x=>x.word===w.word)) mb.words.unshift({...w, id:Utils.uuid(), status:0}); });
-            StorageManager.save(App.MISTAKE_ID, mb);
-            Training.queue.push(...notMastered); Utils.toast(`${notMastered.length} 个单词未掌握`); 
-        } else { Utils.toast('全对！太棒了'); }
-        Training.next();
-    },
-    handleCardClick: (id) => {
-        if(Training.isPaused) return;
-        Training.hasInteracted = true;
-        const index = Training.current.findIndex(x => x.id === id);
-        if(index === -1) return;
-        const w = Training.current[index];
-        const el = document.getElementById('card-' + id);
+        // -------------------
         
-        // --- 核心逻辑: 鼠标点击后，移除键盘焦点，保证释义隐藏 ---
-        Training.setFocus(index, false);
-
-        if (w.status === 2) { w.status = 1; el.classList.remove('is-mastered'); el.classList.add('is-reviewing'); }
-        else if (w.status === 1) { w.status = 2; el.classList.remove('is-reviewing'); el.classList.add('is-mastered'); }
-        else { w.status = 1; el.classList.add('is-reviewing'); }
-        if(Training.current.every(x => x.status === 2)) setTimeout(Training.finishBatch, 600);
+        Training.nextRound();
     },
-    setFocus: (index, isKeyboard = false) => {
-        if (index < 0 || index >= Training.current.length) return;
-        if(Training.focusIndex !== -1) { 
-            const oldEl = document.getElementById('card-' + Training.current[Training.focusIndex].id); 
-            if(oldEl) oldEl.classList.remove('is-keyboard-focus'); 
-        }
-        Training.focusIndex = index;
-        if (isKeyboard) {
-            const newEl = document.getElementById('card-' + Training.current[Training.focusIndex].id);
-            if(newEl) { 
-                newEl.classList.add('is-keyboard-focus'); 
-                newEl.scrollIntoView({behavior: "smooth", block: "center"}); 
-            }
-        }
-    },
-    handleKeyDown: (e) => {
-        if(document.getElementById('training-view').classList.contains('hidden')) return;
-        const k = Settings.keys;
-        if (e.code === k.pause) { Training.togglePause(); return; }
-        if(Training.isPaused) return;
-        if (e.code === k.finish) { Training.finishBatch(); return; }
+    quit: () => {
+        // 退出时保存错题本
+        Training.saveSessionMistakes();
         
-        const container = document.getElementById('card-container');
-        let cols = 2; 
-        if (window.innerWidth >= 768) {
-             cols = Math.ceil(Training.current.length / 2);
-        }
-
-        let nextIndex = Training.focusIndex;
-        if (nextIndex === -1 && [k.up, k.down, k.left, k.right].includes(e.code)) { 
-            Training.setFocus(0, true); return; // 首次激活，标记为键盘
-        }
-        if (e.code === k.right) { if ((nextIndex + 1) % cols !== 0) nextIndex++; } 
-        else if (e.code === k.left) { if (nextIndex % cols !== 0) nextIndex--; } 
-        else if (e.code === k.down) { if (nextIndex + cols < Training.current.length) nextIndex += cols; } 
-        else if (e.code === k.up) { if (nextIndex - cols >= 0) nextIndex -= cols; } 
-        else if (e.code === k.flip) { 
-            e.preventDefault(); 
-            if (nextIndex !== -1) {
-                // 键盘翻转: 保持 isKeyboard=true, 确保释义可见
-                const w = Training.current[nextIndex];
-                const el = document.getElementById('card-' + w.id);
-                if (w.status === 2) { w.status = 1; el.classList.remove('is-mastered'); el.classList.add('is-reviewing'); }
-                else if (w.status === 1) { w.status = 2; el.classList.remove('is-reviewing'); el.classList.add('is-mastered'); }
-                else { w.status = 1; el.classList.add('is-reviewing'); }
-                if(Training.current.every(x => x.status === 2)) setTimeout(Training.finishBatch, 600);
-            }
-        }
-        if (nextIndex !== Training.focusIndex) Training.setFocus(nextIndex, true); 
-    },
-    adjustFontSize: (el) => {
-        let size = 24; 
-        el.style.fontSize = size + 'px';
-        const maxWidth = el.parentElement.offsetWidth - 20; 
-        while (el.scrollWidth > maxWidth && size > 14) {
-            size--;
-            el.style.fontSize = size + 'px';
-        }
-    },
-    render: () => {
-        const c = document.getElementById('card-container'); c.innerHTML='';
-        c.style.setProperty('--cols', Math.ceil(Training.current.length / 2));
-        Training.current.forEach(w => {
-            const el = document.createElement('div'); el.className='word-card'; el.id='card-'+w.id;
-            if(w.status === 1) el.classList.add('is-reviewing');
-            if(w.status === 2) el.classList.add('is-mastered');
-            el.onclick = () => Training.handleCardClick(w.id);
-            el.innerHTML = `<div class="card-inner"><div class="card-front"><div class="check-mark">✅</div><div class="section-top"><div class="word-text">${w.word}</div></div><div class="section-bottom"></div></div><div class="card-back"><div class="section-top"><div class="word-text">${w.word}</div></div><div class="section-bottom"><div class="word-meaning">${w.meaning}</div></div></div></div>`;
-            c.appendChild(el);
-            const texts = el.querySelectorAll('.word-text');
-            requestAnimationFrame(() => texts.forEach(t => Training.adjustFontSize(t)));
-        });
+        clearInterval(State.training.timer);
+        window.removeEventListener('keydown', Training.onKey);
+        document.getElementById('training-view').classList.add('hidden');
+        document.getElementById('bookshelf-view').classList.remove('hidden');
+        UI.renderBooks();
     }
 };
 
 const App = {
-    MISTAKE_ID: 'system_mistakes', isManageMode: false,
-    init: () => { 
-        Settings.init(); 
-        if(!StorageManager.get(App.MISTAKE_ID)) StorageManager.save(App.MISTAKE_ID, {id:App.MISTAKE_ID, name:'📅 错题本', words:[], isSystem:true}); 
-        App.renderList(); 
-    },
-    toggleManageMode: () => { 
-        App.isManageMode = !App.isManageMode; 
-        document.body.classList.toggle('manage-mode', App.isManageMode); 
-        document.getElementById('manage-btn').innerText = App.isManageMode ? '完成' : '⚙️ 管理'; 
-        document.getElementById('manage-btn').style.color = App.isManageMode ? 'var(--primary)' : 'var(--text-sub)'; 
-        App.renderList(); 
-    },
-    handleDelete: (bookId, event) => { 
-        event.stopPropagation(); 
-        if(confirm('确定要删除吗？')) { StorageManager.remove(bookId); App.renderList(); } 
-    },
-    handleExport: (bookId, event) => {
-        event.stopPropagation();
-        const book = StorageManager.get(bookId); if(!book) return;
-        let content = `--- ${book.name} ---\n\n`;
-        const maxLen = Math.max(...book.words.map(w => w.word.length), 10) + 4;
-        book.words.forEach(w => { content += `${w.word.padEnd(maxLen)} ${w.meaning}\n`; });
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], {type: 'text/plain'})); a.download = `${book.name}_单词表.txt`; a.click();
-    },
-    renderList: () => {
-        const list = document.getElementById('book-list'); list.innerHTML = '';
-        const books = StorageManager.getAllBooks();
-        books.forEach(b => {
-            const el = document.createElement('div'); el.className = 'book-card';
-            el.onclick = () => { if(!App.isManageMode) Training.start(b.id); };
-            el.innerHTML = `<div class="book-info"><div class="book-title">${b.name}</div><div class="book-meta">${b.words.length} 词 ${b.isSystem?'(系统)':''}</div></div><div class="book-arrow">➜</div><div class="manage-actions"><button class="btn btn-outline" style="padding:6px 12px; font-size:13px" onclick="App.handleExport('${b.id}', event)">📥 导出</button><button class="btn btn-danger" style="padding:6px 12px; font-size:13px" onclick="App.handleDelete('${b.id}', event)">🗑 删除</button></div>`;
-            list.appendChild(el);
-        });
-        if(books.length === 0) list.innerHTML = '<div style="text-align:center;color:#999;padding:40px">书架是空的</div>';
-    },
-    processImport: () => {
-        const text = document.getElementById('import-text').value;
-        const name = document.getElementById('import-name-input').value;
-        const words = Utils.parseWords(text);
-        if(words.length === 0) { Utils.toast('内容为空', 'error'); return; }
-        StorageManager.save(Utils.uuid(), { id: Utils.uuid(), name: name || '新书 '+new Date().toLocaleDateString(), words: words, isSystem: false });
-        App.closeModals(); App.renderList(); Utils.toast(`导入 ${words.length} 词`);
-    },
-    showImportModal: () => { document.getElementById('import-modal').classList.remove('hidden'); },
-    showSyncModal: () => { document.getElementById('sync-modal').classList.remove('hidden'); },
-    closeModals: () => document.querySelectorAll('.modal-overlay').forEach(e=>e.classList.add('hidden')),
-    handleFileSelect: (input) => { if(input.files[0]) { const r = new FileReader(); r.onload = (e) => document.getElementById('import-text').value = e.target.result; r.readAsText(input.files[0]); } },
-    endTraining: () => { clearInterval(Training.timer); window.removeEventListener('keydown', Training.handleKeyDown); document.getElementById('training-view').classList.add('hidden'); document.getElementById('bookshelf-view').classList.remove('hidden'); App.renderList(); }
+    toggleManage: () => {
+        document.body.classList.toggle('manage-mode');
+        document.getElementById('manage-btn').style.color = document.body.classList.contains('manage-mode') ? 'var(--primary)' : 'var(--text-sub)';
+    }
 };
 
-window.onload = App.init;
+window.onload = Data.init;
 </script>
 </body>
 </html>
