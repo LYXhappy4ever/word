@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>阻断式单词训练器 (强力恢复版+布局优化)</title>
+    <title>阻断式单词训练器 (手势交互终极版)</title>
     <style>
         :root {
             --primary: #4F46E5;
@@ -17,7 +17,7 @@
             --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
-        /* --- 修改点1: 核心修复，防止页面抖动 --- */
+        /* --- 1. 核心修复：防止画面抖动 --- */
         html { 
             box-sizing: border-box; 
             -webkit-tap-highlight-color: transparent;
@@ -78,8 +78,7 @@
         .timer-progress { height: 100%; background: var(--primary); width: 100%; transition: width 1s linear; }
         .training-container { flex: 1; overflow-y: auto; padding: 16px; }
         
-        /* --- 修改点2: 网格布局升级 (智能切换) --- */
-        /* 移动端默认保持2列 */
+        /* --- 2. 智能网格布局 --- */
         .layout-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; transition: all 0.3s ease; }
         
         /* 平板/PC端 (宽度大于768px时) */
@@ -91,18 +90,64 @@
         }
 
         .layout-list { display: flex; flex-direction: column; gap: 16px; }
+        
+        /* --- 3. 三态交互卡片样式 --- */
         .word-card { background: transparent; perspective: 1000px; height: 160px; cursor: pointer; position: relative; touch-action: manipulation; }
-        .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.4s; transform-style: preserve-3d; border-radius: var(--radius); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); will-change: transform; }
-        .word-card.flipped .card-inner { transform: rotateY(180deg); }
-        .card-front, .card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; background: white; border-radius: var(--radius); padding: 10px; }
-        .card-back { transform: rotateY(180deg); background: #fafafa; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; position: absolute; top: 12px; right: 12px; background: #E5E7EB; }
-        .status-dot.green { background: var(--success); } .status-dot.red { background: var(--danger); }
-        .word-text { font-size: 20px; font-weight: 800; word-break: break-all; padding: 0 10px; }
-        .word-meaning { font-size: 15px; color: var(--text-sub); overflow-y: auto; max-height: 70px; width: 100%; }
-        .card-actions { display: flex; gap: 10px; width: 100%; margin-top: auto; }
-        .action-btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-weight: bold; color: white; touch-action: manipulation; }
-        .btn-remember { background: var(--success); } .btn-forgot { background: var(--danger); }
+        
+        .card-inner { 
+            position: relative; width: 100%; height: 100%; text-align: center; 
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* 更有弹性的翻转 */
+            transform-style: preserve-3d; 
+            border-radius: var(--radius); 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+        }
+
+        /* 状态A: 初始状态 (无特殊类) -> 显示正面 */
+        
+        /* 状态B: 正在查看/未掌握 (.is-reviewing) -> 翻转显示背面 */
+        .word-card.is-reviewing .card-inner { transform: rotateY(180deg); }
+
+        /* 状态C: 已掌握 (.is-mastered) -> 显示正面但有特殊样式 */
+        .word-card.is-mastered .card-inner { transform: rotateY(0deg); }
+        
+        /* 卡片面通用 */
+        .card-front, .card-back { 
+            position: absolute; width: 100%; height: 100%; backface-visibility: hidden; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            background: white; border-radius: var(--radius); padding: 10px; 
+            border: 2px solid #e5e7eb; /* 默认灰色边框 */
+        }
+
+        /* 正面样式 */
+        .card-front { z-index: 2; }
+        .word-text { font-size: 20px; font-weight: 800; word-break: break-all; padding: 0 10px; color: var(--text-main); }
+        
+        /* 背面样式 (释义面) */
+        .card-back { 
+            transform: rotateY(180deg); 
+            background: #fff1f2; /* 淡红色背景暗示未掌握 */
+            border-color: #fca5a5;
+        }
+        .word-meaning { font-size: 15px; color: var(--text-main); overflow-y: auto; max-height: 120px; width: 100%; line-height: 1.5; }
+        
+        /* 已掌握时的正面样式覆盖 */
+        .word-card.is-mastered .card-front {
+            border: 3px solid var(--success); /* 绿色粗边框 */
+            background-color: #ecfdf5; /* 极淡绿色背景 */
+        }
+
+        /* 绿色对勾标记 */
+        .check-mark {
+            position: absolute; top: 8px; right: 8px;
+            color: var(--success); font-size: 20px; font-weight: bold;
+            opacity: 0; transform: scale(0.5); transition: all 0.2s;
+        }
+        .word-card.is-mastered .check-mark { opacity: 1; transform: scale(1); }
+
+        /* 提示文字 */
+        .hint-text {
+            font-size: 12px; color: #ef4444; margin-top: auto; opacity: 0.8;
+        }
 
         /* 弹窗 */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: flex-end; justify-content: center; z-index: 200; backdrop-filter: blur(2px); }
@@ -138,10 +183,17 @@
                 <h1 id="train-book-title" style="font-size: 16px;">训练中</h1>
                 <span style="font-size: 12px; color: var(--text-sub)">轮次 <span id="round-count">1</span></span>
             </div>
-            <button class="btn btn-ghost" style="color: var(--primary)" onclick="Training.forceNextGroup()">跳过</button>
+            <button class="btn btn-ghost" style="color: var(--primary)" onclick="Training.finishBatch()">结算/跳过</button>
         </header>
+        
         <div class="timer-bar"><div id="timer-progress" class="timer-progress"></div></div>
+        
+        <div style="background: #fff7ed; color: #c2410c; padding: 8px; text-align: center; font-size: 12px; border-bottom: 1px solid #ffedd5;">
+            点击正面看释义(未记) ➜ 再点变绿(已记) ➜ 倒计时结束只结算绿卡
+        </div>
+
         <div id="card-container" class="training-container layout-grid"></div>
+        
         <div style="padding: 16px; border-top: 1px solid #eee; background: white; text-align: center;">
              <button class="btn btn-outline" style="width: 100%" onclick="Training.toggleLayout()">切换视图布局</button>
         </div>
@@ -309,18 +361,20 @@ const SyncSys = {
 };
 
 const Training = {
-    queue: [], current: [], timer: null, round: 0, // 新增 round 计数器
+    queue: [], current: [], timer: null, round: 0,
+    
     start: (bookId) => {
         const book = StorageManager.get(bookId);
         if(!book || !book.words.length) { Utils.toast('这本书是空的', 'error'); return; }
         Training.queue = [...book.words].sort(()=>0.5-Math.random());
-        Training.round = 0; // 重置轮次
+        Training.round = 0;
         document.getElementById('bookshelf-view').classList.add('hidden');
         document.getElementById('training-view').classList.remove('hidden');
         document.getElementById('train-book-title').innerText = book.name;
         AudioSys.play();
         Training.next();
     },
+    
     next: () => {
         clearInterval(Training.timer);
         AudioSys.play();
@@ -328,58 +382,110 @@ const Training = {
         Training.round++;
         document.getElementById('round-count').innerText = Training.round;
 
-        // --- 修改点3: 模拟复习逻辑，每第3轮加载10个单词，触发布局变宽 ---
+        // 模拟复习逻辑: 每第3轮 (3,6,9...) 加载10个单词触发布局变宽
         const batchSize = (Training.round % 3 === 0) ? 10 : 8;
         
-        // 如果队列不够，且是复习轮，尝试从已完成列表抓取旧词(此处简化为直接取当前队列)
-        // 实际逻辑中如果队列只剩3个，就只取3个
         const batch = Training.queue.splice(0, batchSize);
 
         if(!batch.length) { alert('🎉 本轮训练完成！'); App.endTraining(); return; }
-        Training.current = batch.map(w => ({...w, state: 0}));
+        
+        // 状态: 0=未看, 1=查看中(翻转), 2=已掌握(绿框)
+        Training.current = batch.map(w => ({...w, status: 0}));
         Training.render();
         
         let t = 60;
         const bar = document.getElementById('timer-progress');
         bar.style.transition='none'; bar.style.width='100%'; bar.offsetHeight; bar.style.transition='width 1s linear';
-        Training.timer = setInterval(() => { t--; bar.style.width = (t/60)*100+'%'; if(t<=0) Training.forceNextGroup(); }, 1000);
+        Training.timer = setInterval(() => { t--; bar.style.width = (t/60)*100+'%'; if(t<=0) Training.finishBatch(); }, 1000);
     },
-    forceNextGroup: () => {
-        const left = Training.current.filter(w => w.state === 0);
-        if(left.length) { Training.queue.push(...left); Utils.toast('未完成单词已推后'); }
+    
+    // 结算逻辑：只移除绿色的，其他全部推后
+    finishBatch: () => {
+        const notMastered = Training.current.filter(w => w.status !== 2);
+        
+        if(notMastered.length) { 
+            // 1. 将未掌握的加入错题本
+            const mb = StorageManager.get(App.MISTAKE_ID);
+            notMastered.forEach(w => {
+                 if(!mb.words.find(x=>x.word===w.word)) { 
+                     mb.words.unshift({...w, id:Utils.uuid(), status:0}); 
+                 }
+            });
+            StorageManager.save(App.MISTAKE_ID, mb);
+
+            // 2. 将未掌握的推回队列末尾
+            Training.queue.push(...notMastered); 
+            Utils.toast(`${notMastered.length} 个单词未掌握，已推后`); 
+        } else {
+            Utils.toast('全对！太棒了');
+        }
+        
         Training.next();
     },
-    action: (id, remember) => {
-        const w = Training.current.find(x=>x.id===id);
-        w.state = 1;
-        document.getElementById('card-'+id).classList.remove('flipped');
-        document.getElementById('dot-'+id).className = `status-dot ${remember?'green':'red'}`;
-        if(!remember) {
-            const mb = StorageManager.get(App.MISTAKE_ID);
-            if(!mb.words.find(x=>x.word===w.word)) { mb.words.unshift({...w, id:Utils.uuid()}); StorageManager.save(App.MISTAKE_ID, mb); }
-            Training.queue.push(w);
+    
+    // 点击卡片处理 (三态机)
+    handleCardClick: (id) => {
+        const w = Training.current.find(x => x.id === id);
+        const el = document.getElementById('card-' + id);
+        if(!w || !el) return;
+
+        // 状态流转逻辑
+        if (w.status === 2) {
+            // 已掌握(绿) -> 点击后悔 -> 变为查看中(红背)
+            w.status = 1;
+            el.classList.remove('is-mastered');
+            el.classList.add('is-reviewing');
+        } else if (w.status === 1) {
+            // 查看中(红背) -> 点击确认 -> 变为已掌握(绿)
+            w.status = 2;
+            el.classList.remove('is-reviewing');
+            el.classList.add('is-mastered');
+        } else {
+            // 未看(白) -> 点击查看 -> 变为查看中(红背)
+            w.status = 1;
+            el.classList.add('is-reviewing');
         }
-        if(Training.current.every(x=>x.state===1)) setTimeout(Training.next, 500);
+
+        // 如果全部都已经变绿，自动进入下一组 (延迟一点点体验更好)
+        if(Training.current.every(x => x.status === 2)) {
+            setTimeout(Training.finishBatch, 600);
+        }
     },
+
     render: () => {
         const c = document.getElementById('card-container'); 
         c.innerHTML='';
 
-        // --- 修改点4: 自动检测单词数量，切换布局 ---
-        // 先移除宽模式
+        // 自动布局切换
         c.classList.remove('mode-expanded');
-        // 如果数量超过8个，添加宽模式类 (CSS中定义了PC端变为5列)
         if(Training.current.length > 8) {
             c.classList.add('mode-expanded');
         }
 
         Training.current.forEach(w => {
-            const el = document.createElement('div'); el.className='word-card'; el.id='card-'+w.id;
-            el.onclick = (e) => { if(e.target.tagName!=='BUTTON') el.classList.toggle('flipped'); };
-            el.innerHTML = `<div class="card-inner"><div class="card-front"><div id="dot-${w.id}" class="status-dot"></div><div class="word-text">${w.word}</div></div><div class="card-back"><div class="word-meaning">${w.meaning}</div><div class="card-actions"><button class="action-btn btn-forgot" onclick="Training.action('${w.id}',false)">没记住</button><button class="action-btn btn-remember" onclick="Training.action('${w.id}',true)">记住了</button></div></div></div>`;
+            const el = document.createElement('div'); 
+            el.className='word-card'; 
+            el.id='card-'+w.id;
+            
+            // 绑定点击事件
+            el.onclick = () => Training.handleCardClick(w.id);
+
+            el.innerHTML = `
+                <div class="card-inner">
+                    <div class="card-front">
+                        <div class="check-mark">✅</div>
+                        <div class="word-text">${w.word}</div>
+                    </div>
+                    <div class="card-back">
+                        <div class="word-meaning">${w.meaning}</div>
+                        <div class="hint-text">(再次点击确认掌握)</div>
+                    </div>
+                </div>
+            `;
             c.appendChild(el);
         });
     },
+    
     toggleLayout: () => {
         const c = document.getElementById('card-container');
         c.className = c.className.includes('grid') ? 'training-container layout-list' : 'training-container layout-grid';
