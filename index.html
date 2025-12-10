@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>单词训练器 v21.0 (批量导入&UI优化版)</title>
+    <title>单词训练器 v30.0 (精简修复版)</title>
     <style>
         :root {
             --primary: #4F46E5;
@@ -16,15 +16,17 @@
             --success: #10B981;
             --warning: #F59E0B;
             --focus-ring: #818cf8;
-            --radius: 16px;
+            --select-border: #3b82f6;
+            --select-bg: rgba(59, 130, 246, 0.2);
+            --radius: 12px;
             --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         html { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; padding: 0; font-family: var(--font-stack); background: var(--bg-body); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        body { margin: 0; padding: 0; font-family: var(--font-stack); background: var(--bg-body); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; flex-direction: column; user-select: none; }
         * { box-sizing: border-box; }
 
-        /* --- 组件样式 --- */
+        /* --- 通用组件 --- */
         .btn { border: none; padding: 8px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; outline: none; white-space: nowrap; }
         .btn:active { transform: scale(0.96); }
         .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); }
@@ -33,198 +35,140 @@
         .btn-outline { border: 1px solid #E5E7EB; background: white; color: var(--text-main); }
         .btn-icon { padding: 8px; border-radius: 50%; width: 32px; height: 32px; }
         
-        select { padding: 8px 30px 8px 12px; border-radius: 8px; border: 1px solid #d1d5db; background: white; font-size: 13px; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23666%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 10px; }
-
+        select { padding: 8px 30px 8px 12px; border-radius: 8px; border: 1px solid #d1d5db; background: white; font-size: 13px; cursor: pointer; appearance: none; }
         .hidden { display: none !important; }
         .view { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 
+        /* --- 面包屑导航 --- */
+        .breadcrumb-bar {
+            padding: 10px 16px; background: white; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 5px; font-size: 14px; color: var(--text-sub); overflow-x: auto; flex-shrink: 0;
+        }
+        .crumb { cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: background 0.2s; }
+        .crumb:hover { background: #f3f4f6; color: var(--primary); }
+        .crumb.active { font-weight: bold; color: var(--text-main); cursor: default; }
+        .crumb-separator { color: #d1d5db; }
+
         /* --- 书架视图 --- */
         header { background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; z-index: 50; flex-shrink: 0; }
-        header h1 { margin: 0; font-size: 18px; font-weight: 800; color: var(--primary); }
-
-        #bookshelf-view { overflow-y: auto; padding: 16px; }
-        .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
         
-        .book-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; padding-bottom: 40px; }
+        #bookshelf-view { overflow: hidden; display: flex; flex-direction: column; }
+        .file-area { flex: 1; overflow-y: auto; padding: 16px; position: relative; } 
         
-        .book-card {
-            background: var(--bg-card); border-radius: var(--radius); padding: 16px;
+        .toolbar { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        
+        .book-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding-bottom: 60px; }
+        
+        .item-card {
+            background: var(--bg-card); border-radius: var(--radius); padding: 12px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 2px solid transparent;
-            display: flex; justify-content: space-between; align-items: center;
-            height: 90px; position: relative; transition: all 0.2s; cursor: pointer;
-            /* Remove overflow hidden to show dropdown */
-            z-index: 1;
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            height: 150px; position: relative; transition: all 0.2s; cursor: pointer;
+            justify-content: space-between; z-index: 1;
         }
-        .book-card:hover { transform: translateY(-2px); box-shadow: 0 8px 12px -3px rgba(0,0,0,0.1); border-color: #e5e7eb; z-index: 10; }
-        .book-card.drag-over { border: 2px dashed var(--success); background: #ecfdf5; transform: scale(0.98); }
+        .item-card:hover { transform: translateY(-2px); box-shadow: 0 8px 12px -3px rgba(0,0,0,0.1); border-color: #e5e7eb; z-index: 10; }
+        .item-card.selected { background-color: var(--primary-bg); border-color: var(--select-border); box-shadow: 0 0 0 2px var(--select-bg); }
+        .item-card.drag-target { border: 2px dashed var(--success); transform: scale(1.05); z-index: 20; background: #ecfdf5; }
+
+        .item-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; pointer-events: none; }
+        .item-icon { font-size: 36px; margin-bottom: 5px; }
+        .item-name { font-size: 14px; font-weight: 600; color: #374151; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 5px; }
         
-        .book-info { flex: 1; overflow: hidden; padding-right: 10px; }
-        .book-title { font-weight: 700; font-size: 16px; margin-bottom: 4px; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .book-meta { font-size: 12px; color: #9CA3AF; display: flex; gap: 10px; align-items: center; }
-        .badge-unmastered { color: var(--warning); font-weight: 600; background: #fffbeb; padding: 2px 6px; border-radius: 4px; }
-        .badge-done { color: var(--success); font-weight: 600; background: #ecfdf5; padding: 2px 6px; border-radius: 4px; }
+        .item-meta { 
+            font-size: 11px; color: #9ca3af; margin-top: 4px; pointer-events: auto;
+            padding: 2px 6px; border-radius: 4px; transition: background 0.2s;
+        }
+        .item-meta:hover { background: #f3f4f6; color: var(--primary); }
+
+        .item-card[data-type="folder"] .item-icon { color: #F59E0B; }
+        .item-actions-row { display: flex; gap: 2px; width: 100%; justify-content: center; opacity: 0; transition: opacity 0.2s; margin-top: 5px; z-index: 5;}
+        .item-card:hover .item-actions-row { opacity: 1; }
+
+        /* 框选选框 */
+        #selection-marquee {
+            position: fixed; border: 1px solid var(--select-border); background-color: var(--select-bg);
+            display: none; z-index: 9999; pointer-events: none;
+        }
         
-        .book-actions { display: flex; gap: 4px; align-items: center; position: relative; }
-        
-        /* 下拉菜单样式 */
+        /* 下拉菜单 */
         .menu-dropdown {
-            position: absolute; top: 100%; right: 0;
-            background: white; border-radius: 12px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            border: 1px solid #f3f4f6;
-            min-width: 120px;
-            padding: 5px;
-            z-index: 100;
-            display: none;
-            flex-direction: column;
+            position: absolute; top: 100%; right: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: none; flex-direction: column; z-index: 200; min-width: 100px; overflow: hidden;
         }
         .menu-dropdown.show { display: flex; }
-        .menu-item {
-            padding: 8px 12px; text-align: left; background: none; border: none;
-            width: 100%; cursor: pointer; font-size: 13px; color: var(--text-main);
-            border-radius: 6px; display: flex; align-items: center; gap: 8px;
-        }
+        .menu-item { padding: 8px 12px; text-align: left; background: white; border: none; font-size: 12px; cursor: pointer; width: 100%; }
         .menu-item:hover { background: #f3f4f6; }
-        .menu-item.danger { color: var(--danger); }
-        .menu-item.danger:hover { background: #fee2e2; }
+        .menu-item.danger { color: red; }
 
-        /* --- 词池模式 --- */
-        #pool-view { background: #f0f4f8; }
-        .pool-container { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; justify-content: center; }
-        
-        .bubble {
-            background: white; border: 1px solid #e2e8f0; border-radius: 20px;
-            font-size: 14px; cursor: pointer;
-            transition: all 0.2s ease;
-            user-select: none;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05); position: relative;
-            min-width: 60px; max-width: 220px;
-            display: inline-grid; grid-template-areas: "stack";
-            align-items: center; justify-items: center;
-        }
-        
-        .bubble:active { cursor: grabbing; box-shadow: 0 8px 16px rgba(0,0,0,0.1); transform: scale(1.05); z-index: 10; }
-
-        .bubble-layer {
-            grid-area: stack; padding: 8px 16px; text-align: center;
-            width: max-content; max-width: 220px;
-            transition: opacity 0.2s;
-        }
-
-        .bubble[data-state="word"] .layer-meaning { opacity: 0; visibility: hidden; }
-        .bubble[data-state="word"] .layer-word { opacity: 1; visibility: visible; }
-
-        .bubble[data-state="meaning"] { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); font-weight: bold; }
-        .bubble[data-state="meaning"] .layer-word { opacity: 0; visibility: hidden; }
-        .bubble[data-state="meaning"] .layer-meaning { opacity: 1; visibility: visible; }
-
-        .bubble[data-state="mastered"] { background: var(--success); color: white; border-color: var(--success); box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3); }
-        .bubble[data-state="mastered"] .layer-meaning { opacity: 0; visibility: hidden; }
-        .bubble[data-state="mastered"] .layer-word { opacity: 1; visibility: visible; }
-
-        .bubble.vanish { opacity: 0; pointer-events: none; cursor: default; }
-        .bubble:hover:not(.vanish) { transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-color: var(--primary); }
-
-        /* --- 拖拽遮罩 --- */
-        #drop-overlay {
-            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(79, 70, 229, 0.95); z-index: 999;
-            display: none; justify-content: center; align-items: center; flex-direction: column;
-            color: white; backdrop-filter: blur(4px); pointer-events: none;
-        }
-        #drop-overlay.active { display: flex; pointer-events: auto; }
-
-        /* --- 训练视图 --- */
+        /* 训练视图 */
         .full-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background: var(--bg-body); display: flex; flex-direction: column; }
         .timer-bar { height: 4px; background: #e5e7eb; width: 100%; }
         .timer-progress { height: 100%; background: var(--primary); width: 100%; transition: width 1s linear; }
-        
         .training-container { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; }
         .layout-grid { display: grid; gap: 10px; width: 100%; height: 100%; transition: all 0.3s ease; }
-        
-        @media (max-width: 768px) {
-            .layout-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 160px; height: auto; padding-bottom: 80px; }
-        }
-        @media (min-width: 768px) {
-            .training-container { justify-content: center; padding: 30px; }
-            .layout-grid { grid-template-columns: repeat(var(--cols, 4), 1fr); grid-template-rows: repeat(2, 1fr); height: 100%; max-height: 85vh; }
-            .word-card { height: 100% !important; }
-        }
+        @media (min-width: 768px) { .layout-grid { grid-template-columns: repeat(var(--cols, 4), 1fr); grid-template-rows: repeat(2, 1fr); height: 100%; max-height: 85vh; } .word-card { height: 100% !important; } }
+        @media (max-width: 768px) { .layout-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 160px; height: auto; padding-bottom: 80px; } }
         
         .word-card { background: transparent; perspective: 1000px; height: 160px; cursor: pointer; position: relative; touch-action: manipulation; }
-        .word-card.is-keyboard-focus .card-inner { box-shadow: 0 0 0 4px var(--focus-ring), 0 10px 15px -3px rgba(0, 0, 0, 0.1); transform: scale(1.02); z-index: 10; }
-        
         .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); transform-style: preserve-3d; border-radius: var(--radius); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
         .word-card.is-reviewing .card-inner { transform: rotateY(180deg); }
         .word-card.is-mastered .card-inner { transform: rotateY(0deg); } 
-
         .card-front, .card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: var(--radius); border: 2px solid #e5e7eb; background: white; overflow: hidden; display: flex; flex-direction: column; }
         .card-front { z-index: 2; background: white; color: var(--text-main); }
         .card-back { z-index: 1; transform: rotateY(180deg); background: #FFF1F2; border-color: #FECACA; }
-
-        .section-top { height: 45%; width: 100%; display: flex; align-items: center; justify-content: center; padding: 0 10px; border-bottom: 1px dashed transparent; }
-        .word-text { font-size: 22px; font-weight: 800; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-
-        .section-bottom { 
-            height: 55%; width: 100%; padding: 10px; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.01); 
-            opacity: 0; transition: opacity 0.2s ease;
-        }
-        .word-card:hover .section-bottom, .word-card.is-keyboard-focus .section-bottom, .word-card.force-reveal .section-bottom { opacity: 1; }
-
-        .card-back .section-top { border-bottom-color: #fca5a5; }
-        .card-back .word-meaning { font-size: 15px; line-height: 1.4; color: #374151; font-weight: 500; }
-        
-        .word-card.is-mastered .card-front { border: 3px solid var(--success); background-color: #ecfdf5; }
+        .word-card.is-review-item .card-front { border-style: dashed; border-color: #818cf8; background: #f5f3ff; }
+        .word-card.is-mastered .card-front { border: 3px solid var(--success); background-color: #ecfdf5; border-style: solid; }
         .check-mark { position: absolute; top: 8px; right: 8px; color: var(--success); font-size: 20px; opacity: 0; transform: scale(0.5); transition: all 0.2s; }
         .word-card.is-mastered .check-mark { opacity: 1; transform: scale(1); }
+        .section-top { height: 45%; width: 100%; display: flex; align-items: center; justify-content: center; padding: 0 10px; }
+        .word-text { font-size: 22px; font-weight: 800; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; }
+        .section-bottom { height: 55%; width: 100%; padding: 10px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.01); opacity: 0; transition: opacity 0.2s ease; }
+        .word-card:hover .section-bottom { opacity: 1; }
 
-        .pause-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 150; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-
-        /* 模态框 */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+        /* 模态框 & Toast */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; backdrop-filter: blur(2px); opacity: 0; pointer-events: none; }
         .modal-overlay:not(.hidden) { opacity: 1; pointer-events: auto; }
-        .modal { background: white; width: 90%; max-width: 450px; border-radius: 20px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); transform: scale(0.95); transition: transform 0.2s; }
-        .modal-overlay:not(.hidden) .modal { transform: scale(1); }
-        .code-input { width: 100%; height: 120px; padding: 12px; background-color: #f9fafb; border: 2px solid #e5e7eb; border-radius: 10px; resize: none; outline: none; margin: 10px 0; font-family: ui-monospace, monospace; font-size: 13px; }
-
-        #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(17, 24, 39, 0.95); color: white; padding: 10px 24px; border-radius: 30px; font-size: 14px; font-weight: 500; z-index: 999; pointer-events: none; opacity: 0; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 8px; white-space: nowrap;}
+        .modal { background: white; width: 90%; max-width: 450px; border-radius: 20px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(17, 24, 39, 0.95); color: white; padding: 10px 24px; border-radius: 30px; font-size: 14px; z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+        
+        #pool-view { background: #f0f4f8; }
+        .pool-container { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; justify-content: center; }
+        .bubble { 
+            background: white; border: 1px solid #e2e8f0; border-radius: 20px; padding: 8px 16px; cursor: pointer; user-select: none; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin: 5px;
+        }
+        .bubble:active { transform: scale(1.05); }
     </style>
 </head>
 <body>
 
-    <div id="drop-overlay">
-        <div style="font-size: 4rem; margin-bottom: 10px;">📂</div>
-        <div style="font-size: 1.5rem; font-weight: 700;">释放文件批量导入</div>
-        <div style="opacity: 0.8; margin-top: 5px;">支持多选 txt/json 文件</div>
-    </div>
+    <div id="selection-marquee"></div>
 
     <div id="bookshelf-view" class="view">
         <header>
-            <div style="display:flex; align-items:center; gap:10px;">
-                <h1>🧠 记忆大师</h1>
-            </div>
+            <h1>🧠 记忆大师</h1>
             <div style="display: flex; gap: 8px;">
+                <button class="btn btn-outline" onclick="FolderSys.createFolder()">📂 新建文件夹</button>
                 <button class="btn btn-ghost" onclick="SyncSys.exportData()">📤 备份</button>
-                <button class="btn btn-outline" onclick="App.showImportModal()">+ 导入</button>
+                <button class="btn btn-primary" onclick="App.showImportModal()">+ 导入</button>
             </div>
         </header>
         
-        <div style="max-width: 1000px; margin: 0 auto; width: 100%; padding-top: 10px;">
-            <div class="toolbar">
-                <select id="sort-pref" style="flex:1; min-width: 140px;">
-                    <option value="unmastered">⚡ 排序：未掌握优先</option>
-                    <option value="random">🎲 排序：随机乱序</option>
-                    <option value="az">🔤 排序：A-Z</option>
-                </select>
-                <button class="btn btn-ghost" onclick="App.toggleManageMode()" id="manage-btn">⚙️ 管理</button>
-            </div>
-            
-            <div id="book-list" class="book-list"></div>
-            
-            <div style="text-align: center; margin-top: 30px; color: #9ca3af; font-size: 12px;">
-                提示：拖拽单词本可合并 · 拖拽多文件可批量导入
+        <div class="breadcrumb-bar" id="breadcrumb">
+            <span class="crumb active">根目录</span>
+        </div>
+
+        <div id="file-area" class="file-area" onmousedown="SelectionSys.start(event)">
+            <div style="max-width: 1200px; margin: 0 auto;">
+                <div class="toolbar">
+                    <select id="sort-pref" onchange="App.savePref()">
+                        <option value="random" selected>🎲 排序：随机乱序 (默认)</option>
+                        <option value="unmastered">⚡ 排序：未掌握优先</option>
+                        <option value="az">🔤 排序：A-Z</option>
+                    </select>
+                    <span style="color:#999; font-size:12px; margin-left:auto; align-self:center;">提示：按住拖拽框选 · 单击进入 · Ctrl+C/V</span>
+                </div>
+                
+                <div id="book-list" class="book-list"></div>
             </div>
         </div>
     </div>
@@ -234,62 +178,40 @@
             <button class="btn btn-ghost" onclick="App.endTraining()">✕ 退出</button>
             <div style="text-align: center;">
                 <h1 id="train-book-title" style="font-size: 15px; margin:0;">训练中</h1>
-                <span style="font-size: 11px; color: var(--text-sub)">轮次 <span id="round-count">1</span></span>
+                <span style="font-size: 11px; color: var(--text-sub)">轮次 <span id="round-count">1</span> <span id="review-badge" class="hidden" style="color:#4F46E5; font-weight:bold; margin-left:5px;">(复习轮)</span></span>
             </div>
             <div style="display:flex; gap:5px;">
-                <button class="btn btn-ghost" onclick="Training.toggleAllMeanings()" title="显示所有释义">👁️</button>
-                <button class="btn btn-ghost" id="pause-btn" onclick="Training.togglePause()" style="font-size: 18px;">⏸</button>
+                <button class="btn btn-ghost" onclick="Training.toggleAllMeanings()">👁️</button>
+                <button class="btn btn-ghost" onclick="Training.togglePause()">⏸</button>
             </div>
         </header>
-        
         <div class="timer-bar"><div id="timer-progress" class="timer-progress"></div></div>
-        
-        <div style="background: #FEF3C7; color: #D97706; padding: 6px; text-align: center; font-size: 12px;">
-            右键/拖拽复制单词 · 空格翻转 · 回车结算
-        </div>
-
         <div id="card-container" class="training-container layout-grid"></div>
-        
-        <div style="padding: 12px; border-top: 1px solid #eee; background: white; display: flex; justify-content: center;">
-             <button class="btn btn-outline" style="width: 100%; max-width: 300px; padding: 10px;" onclick="Training.finishBatch()">📥 本组结算 (Enter)</button>
+        <div style="padding: 12px; background: white; text-align: center;">
+             <button class="btn btn-outline" style="width: 200px;" onclick="Training.finishBatch()">📥 结算 (Enter)</button>
         </div>
-
         <div id="pause-overlay" class="pause-overlay hidden">
-            <div style="font-size: 40px; margin-bottom: 15px;">⏸</div>
-            <button class="btn btn-primary" style="padding: 12px 30px;" onclick="Training.togglePause()">继续训练</button>
+            <h1>⏸</h1><button class="btn btn-primary" onclick="Training.togglePause()">继续</button>
         </div>
     </div>
-
+    
     <div id="pool-view" class="full-screen hidden">
-        <header>
-            <button class="btn btn-ghost" onclick="Pool.close()">⬅ 返回</button>
-            <h1 style="font-size:16px;">🌊 速筛词池</h1>
-            <span style="width: 40px;"></span>
-        </header>
-        <div style="padding:10px; text-align:center; color:#666; font-size:12px; background:#fff; border-bottom:1px solid #eee;">
-            拖拽/长按/右键始终复制单词 · 5s自动回退
-        </div>
+        <header><button class="btn btn-ghost" onclick="Pool.close()">⬅ 返回</button> <h1>速筛词池</h1> <span></span></header>
         <div id="pool-container" class="pool-container"></div>
     </div>
 
     <div id="import-modal" class="modal-overlay hidden">
         <div class="modal">
-            <h3 style="margin-top:0">导入 / 新建</h3>
-            <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:15px;">
-                 <label style="display:block; color:#666; font-size:12px; margin-bottom:5px;">方式一：批量导入文件</label>
-                 <button class="btn btn-outline" style="width:100%;" onclick="document.getElementById('file-input').click()">📂 选择多个文件</button>
+            <h3>导入 / 新建</h3>
+            <div style="margin-bottom:15px; padding-bottom:15px; border-bottom:1px solid #eee;">
+                 <button class="btn btn-outline" style="width:100%;" onclick="document.getElementById('file-input').click()">📂 选择文件 (txt/json)</button>
                  <input type="file" id="file-input" class="hidden" multiple onchange="App.handleFileInput(this)">
             </div>
-            
-            <div>
-                <label style="display:block; color:#666; font-size:12px; margin-bottom:5px;">方式二：粘贴文本创建</label>
-                <input type="text" id="import-name-input" placeholder="单词本名称" style="width:100%; padding:10px; border:2px solid #E5E7EB; border-radius:10px; outline:none; margin-bottom: 10px;">
-                <textarea id="import-text" class="code-input" placeholder="apple 苹果&#10;banana 香蕉"></textarea>
-            </div>
-            
-            <div style="display:flex; gap:10px; justify-content: flex-end; margin-top:15px;">
-                <button class="btn btn-ghost" onclick="App.closeModals()">取消</button>
-                <button class="btn btn-primary" onclick="App.processImport()">确认创建</button>
+            <textarea id="import-text" class="code-input" placeholder="直接粘贴文本..."></textarea>
+            <input type="text" id="import-name-input" placeholder="名称" style="width:100%; padding:8px; border:1px solid #eee; border-radius:8px; margin-top:5px;">
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px;">
+                <button class="btn btn-ghost" onclick="document.getElementById('import-modal').classList.add('hidden')">取消</button>
+                <button class="btn btn-primary" onclick="App.processImport()">确认</button>
             </div>
         </div>
     </div>
@@ -312,6 +234,15 @@ const Utils = {
             console.error('Copy failed', err);
             Utils.toast('复制失败', 'error');
         });
+    },
+    shuffle: (array) => {
+        let currentIndex = array.length, randomIndex;
+        while (currentIndex != 0) {
+            randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex--;
+            [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+        }
+        return array;
     }
 };
 
@@ -320,47 +251,403 @@ const StorageManager = {
     save: (id, val) => { try { localStorage.setItem(StorageManager.getKey(id), JSON.stringify(val)); } catch(e) { Utils.toast('存储已满', 'error'); } },
     get: (id) => { try { return JSON.parse(localStorage.getItem(StorageManager.getKey(id))); } catch(e) { return null; } },
     remove: (id) => localStorage.removeItem(StorageManager.getKey(id)),
-    getAllBooks: () => {
-        const books = [];
-        for(let i=0; i<localStorage.length; i++) { 
-            const k = localStorage.key(i); 
-            if(k.startsWith('bk_')) { 
-                try { 
-                    const b = JSON.parse(localStorage.getItem(k)); 
-                    if(b && b.words) books.push(b); 
-                } catch(e) {} 
-            } 
+    getAllItems: () => {
+        const items = [];
+        for(let i=0; i<localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if(k.startsWith('bk_')) {
+                try {
+                    const item = JSON.parse(localStorage.getItem(k));
+                    if (!item.parentId) { item.parentId = 'root'; localStorage.setItem(k, JSON.stringify(item)); }
+                    if (!item.type) { item.type = 'book'; localStorage.setItem(k, JSON.stringify(item)); }
+                    items.push(item);
+                } catch(e) {}
+            }
         }
-        return books.sort((a,b) => b.isSystem ? 1 : (b.id > a.id ? -1 : 1));
+        return items;
     },
-    updateWordStatus: (bookId, wordId, status) => {
+    updateStatus: (bookId, wordId, status) => {
         const book = StorageManager.get(bookId);
-        if(!book) return;
-        const w = book.words.find(x => x.id === wordId);
-        if(w) { w.status = status; StorageManager.save(bookId, book); }
+        if(book) { 
+            const w = book.words.find(x => x.id === wordId);
+            if(w) { w.status = status; StorageManager.save(bookId, book); }
+        }
+    }
+};
+
+const FolderSys = {
+    currentId: 'root',
+    path: [{id: 'root', name: '根目录'}],
+    createFolder: () => {
+        const name = prompt("请输入文件夹名称：", "新建文件夹");
+        if(name) {
+            const id = Utils.uuid();
+            StorageManager.save(id, { id, name, type: 'folder', parentId: FolderSys.currentId });
+            App.renderList();
+        }
+    },
+    enter: (id, name) => {
+        FolderSys.currentId = id;
+        FolderSys.path.push({id, name});
+        FolderSys.renderBreadcrumb();
+        App.renderList();
+        SelectionSys.clear();
+    },
+    navTo: (index) => {
+        FolderSys.path = FolderSys.path.slice(0, index + 1);
+        FolderSys.currentId = FolderSys.path[FolderSys.path.length-1].id;
+        FolderSys.renderBreadcrumb();
+        App.renderList();
+        SelectionSys.clear();
+    },
+    renderBreadcrumb: () => {
+        const bc = document.getElementById('breadcrumb');
+        bc.innerHTML = '';
+        FolderSys.path.forEach((p, idx) => {
+            if(idx > 0) { const sp = document.createElement('span'); sp.className='crumb-separator'; sp.innerText='>'; bc.appendChild(sp); }
+            const el = document.createElement('span');
+            el.className = `crumb ${idx === FolderSys.path.length-1 ? 'active' : ''}`;
+            el.innerText = p.name;
+            el.onclick = () => FolderSys.navTo(idx);
+            bc.appendChild(el);
+        });
+    }
+};
+
+const SelectionSys = {
+    selectedIds: new Set(),
+    isSelecting: false,
+    startPos: {x:0, y:0},
+    clipboard: { op: null, items: [] }, 
+
+    start: (e) => {
+        if (e.target.closest('.item-card')) return;
+        
+        SelectionSys.isSelecting = true;
+        SelectionSys.startPos = { x: e.pageX, y: e.pageY };
+        const marquee = document.getElementById('selection-marquee');
+        marquee.style.display = 'block';
+        marquee.style.left = e.pageX + 'px';
+        marquee.style.top = e.pageY + 'px';
+        marquee.style.width = '0px';
+        marquee.style.height = '0px';
+        if (!e.ctrlKey && !e.shiftKey) SelectionSys.clear();
+        document.addEventListener('mousemove', SelectionSys.move);
+        document.addEventListener('mouseup', SelectionSys.end);
+    },
+    move: (e) => {
+        if (!SelectionSys.isSelecting) return;
+        const marquee = document.getElementById('selection-marquee');
+        const currentX = e.pageX;
+        const currentY = e.pageY;
+        
+        const width = Math.abs(currentX - SelectionSys.startPos.x);
+        const height = Math.abs(currentY - SelectionSys.startPos.y);
+        const left = Math.min(currentX, SelectionSys.startPos.x);
+        const top = Math.min(currentY, SelectionSys.startPos.y);
+        
+        marquee.style.width = width + 'px';
+        marquee.style.height = height + 'px';
+        marquee.style.left = left + 'px';
+        marquee.style.top = top + 'px';
+        
+        const rect = { left, top, right: left+width, bottom: top+height };
+        document.querySelectorAll('.item-card').forEach(card => {
+            const cardRect = card.getBoundingClientRect();
+            const cLeft = cardRect.left + window.scrollX;
+            const cTop = cardRect.top + window.scrollY;
+            const cRight = cLeft + cardRect.width;
+            const cBottom = cTop + cardRect.height;
+            const intersect = !(rect.left > cRight || rect.right < cLeft || rect.top > cBottom || rect.bottom < cTop);
+            if (intersect) {
+                SelectionSys.selectedIds.add(card.dataset.id);
+                card.classList.add('selected');
+            }
+        });
+    },
+    end: () => {
+        SelectionSys.isSelecting = false;
+        document.getElementById('selection-marquee').style.display = 'none';
+        document.removeEventListener('mousemove', SelectionSys.move);
+        document.removeEventListener('mouseup', SelectionSys.end);
+    },
+    toggle: (id, multi) => {
+        if (!multi) SelectionSys.clear();
+        if (SelectionSys.selectedIds.has(id)) {
+            SelectionSys.selectedIds.delete(id);
+            document.querySelector(`.item-card[data-id="${id}"]`)?.classList.remove('selected');
+        } else {
+            SelectionSys.selectedIds.add(id);
+            document.querySelector(`.item-card[data-id="${id}"]`)?.classList.add('selected');
+        }
+    },
+    clear: () => {
+        SelectionSys.selectedIds.clear();
+        document.querySelectorAll('.item-card.selected').forEach(el => el.classList.remove('selected'));
+    },
+    handleKey: (e) => {
+        if (document.getElementById('bookshelf-view').classList.contains('hidden')) return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        
+        // 使用 e.code 修复大小写/输入法下的快捷键问题
+        if (e.code === 'Delete' || e.code === 'Backspace') {
+            if (SelectionSys.selectedIds.size > 0 && confirm(`删除选中的 ${SelectionSys.selectedIds.size} 项？`)) {
+                SelectionSys.selectedIds.forEach(id => {
+                    const item = StorageManager.get(id);
+                    if (item && item.isSystem) return; 
+                    StorageManager.remove(id);
+                });
+                SelectionSys.clear();
+                App.renderList();
+            }
+        }
+        else if (e.ctrlKey && e.code === 'KeyC') { 
+            SelectionSys.clipboard = { op: 'copy', items: Array.from(SelectionSys.selectedIds) }; 
+            Utils.toast(`复制了 ${SelectionSys.clipboard.items.length} 项`); 
+        }
+        else if (e.ctrlKey && e.code === 'KeyX') { 
+            SelectionSys.clipboard = { op: 'cut', items: Array.from(SelectionSys.selectedIds) }; 
+            Utils.toast(`剪切了 ${SelectionSys.clipboard.items.length} 项`); 
+        }
+        else if (e.ctrlKey && e.code === 'KeyV') {
+            if (!SelectionSys.clipboard.items.length) return;
+            let count = 0;
+            SelectionSys.clipboard.items.forEach(oldId => {
+                const item = StorageManager.get(oldId);
+                if (!item) return;
+                if (SelectionSys.clipboard.op === 'cut') {
+                    item.parentId = FolderSys.currentId;
+                    StorageManager.save(item.id, item);
+                    count++;
+                } else {
+                    const newId = Utils.uuid();
+                    const newItem = { ...item, id: newId, parentId: FolderSys.currentId, name: item.name + ' 副本' };
+                    if(newItem.words) newItem.words = newItem.words.map(w => ({...w, id: Utils.uuid()}));
+                    StorageManager.save(newId, newItem);
+                    count++;
+                }
+            });
+            if (SelectionSys.clipboard.op === 'cut') SelectionSys.clipboard.items = []; 
+            App.renderList();
+            Utils.toast(SelectionSys.clipboard.op === 'cut' ? `移动 ${count} 项` : `粘贴 ${count} 项`);
+        }
+        else if (e.code === 'KeyA' && e.ctrlKey) { 
+            e.preventDefault(); 
+            document.querySelectorAll('.item-card').forEach(el => { 
+                SelectionSys.selectedIds.add(el.dataset.id); 
+                el.classList.add('selected'); 
+            }); 
+        }
+    }
+};
+
+const App = {
+    isManageMode: false,
+    showRemainingMode: false,
+    init: () => {
+        if(!StorageManager.get('system_mistakes')) StorageManager.save('system_mistakes', {id:'system_mistakes', name:'📅 错题本', words:[], isSystem:true, type:'book', parentId: 'root'});
+        App.loadPref();
+        App.renderList();
+        App.setupDragDrop();
+        window.addEventListener('keydown', SelectionSys.handleKey);
+        
+        document.addEventListener('click', (e) => {
+            if(!e.target.closest('.item-actions-row') && !e.target.closest('.menu-dropdown')) {
+                document.querySelectorAll('.menu-dropdown').forEach(el => { el.classList.remove('show'); el.style.display='none'; });
+            }
+        });
+    },
+    
+    loadPref: () => { document.getElementById('sort-pref').value = localStorage.getItem('sort_pref') || 'random'; },
+    savePref: () => { localStorage.setItem('sort_pref', document.getElementById('sort-pref').value); },
+
+    toggleMenu: (bookId, event) => {
+        event.stopPropagation();
+        const menu = document.getElementById(`menu-${bookId}`);
+        const wasHidden = menu.style.display !== 'flex';
+        document.querySelectorAll('.menu-dropdown').forEach(el => { el.classList.remove('show'); el.style.display='none'; });
+        if(wasHidden) { menu.classList.add('show'); menu.style.display = 'flex'; }
+    },
+
+    toggleProgressMode: (event) => {
+        event.stopPropagation();
+        App.showRemainingMode = !App.showRemainingMode;
+        App.renderList();
+    },
+
+    renderList: () => {
+        const list = document.getElementById('book-list');
+        list.innerHTML = '';
+        const allItems = StorageManager.getAllItems();
+        const currentItems = allItems.filter(item => {
+            if (item.isSystem && FolderSys.currentId === 'root') return true;
+            return item.parentId === FolderSys.currentId;
+        });
+
+        currentItems.sort((a, b) => {
+            if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+            return a.id > b.id ? -1 : 1;
+        });
+
+        if (currentItems.length === 0) list.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#999; padding:40px;">此文件夹为空</div>';
+
+        currentItems.forEach(item => {
+            const el = document.createElement('div');
+            el.className = `item-card ${SelectionSys.selectedIds.has(item.id) ? 'selected' : ''}`;
+            el.dataset.id = item.id;
+            el.dataset.type = item.type;
+            el.draggable = true;
+            
+            el.ondragstart = (e) => {
+                if (!SelectionSys.selectedIds.has(item.id)) { SelectionSys.clear(); SelectionSys.toggle(item.id, false); }
+                e.dataTransfer.setData('json', JSON.stringify({ ids: Array.from(SelectionSys.selectedIds), type: item.type }));
+            };
+            el.ondragover = (e) => { e.preventDefault(); el.classList.add('drag-target'); };
+            el.ondragleave = () => { el.classList.remove('drag-target'); };
+            el.ondrop = (e) => App.handleDrop(e, item);
+            
+            el.onclick = () => { 
+                if(item.type === 'folder') FolderSys.enter(item.id, item.name); 
+                else Training.start(item.id); 
+            };
+
+            const icon = item.type === 'folder' ? '📁' : '📘';
+            
+            let metaHtml = '';
+            if (item.type === 'book') {
+                const total = item.words.length;
+                const done = item.words.filter(w=>w.status===2).length;
+                const remaining = total - done;
+                const text = App.showRemainingMode ? `待学 ${remaining}` : `${done}/${total} 已学`;
+                metaHtml = `<div class="item-meta" onclick="App.toggleProgressMode(event)" title="点击切换显示模式">${text}</div>`;
+            } else {
+                metaHtml = `<div class="item-meta">文件夹</div>`;
+            }
+            
+            // 移除了 "🔀 打乱顺序"
+            const actions = !item.isSystem && item.type === 'book' ? `
+                <div class="item-actions-row">
+                    <button class="btn btn-ghost btn-icon" title="气泡筛选" onclick="App.handlePoolMode('${item.id}', event)">🌊</button>
+                    <button class="btn btn-ghost btn-icon" title="重命名" onclick="App.handleRenameBook('${item.id}', event)">✏️</button>
+                    <button class="btn btn-ghost btn-icon" title="更多" onclick="App.toggleMenu('${item.id}', event)">⋮</button>
+                </div>
+                <div class="menu-dropdown" id="menu-${item.id}">
+                    <button class="menu-item" onclick="App.handleDedupeBook('${item.id}', event)">🧹 去重</button>
+                    <button class="menu-item" onclick="App.handleExportBook('${item.id}', event)">📥 导出</button>
+                    <button class="menu-item danger" onclick="App.handleDeleteBook('${item.id}', event)">🗑 删除</button>
+                </div>
+            ` : (!item.isSystem ? `
+                <div class="item-actions-row">
+                    <button class="btn btn-ghost btn-icon" title="重命名" onclick="App.handleRenameBook('${item.id}', event)">✏️</button>
+                    <button class="btn btn-ghost btn-icon" title="删除" onclick="App.handleDeleteBook('${item.id}', event)">🗑</button>
+                </div>
+            ` : `<div class="item-actions-row"></div>`);
+
+            el.innerHTML = `
+                <div class="item-content">
+                    <div class="item-icon">${icon}</div>
+                    <div class="item-name" title="${item.name}">${item.name}</div>
+                    ${metaHtml}
+                </div>
+                ${actions}
+            `;
+            list.appendChild(el);
+        });
+    },
+
+    handleDrop: (e, targetItem) => {
+        e.preventDefault(); e.stopPropagation();
+        document.querySelectorAll('.drag-target').forEach(el => el.classList.remove('drag-target'));
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('json'));
+            const ids = data.ids;
+            if (targetItem.type === 'folder') {
+                if (ids.includes(targetItem.id)) return;
+                let count = 0;
+                ids.forEach(id => {
+                    const item = StorageManager.get(id);
+                    if (item && item.parentId !== targetItem.id && !item.isSystem) {
+                        item.parentId = targetItem.id; StorageManager.save(id, item); count++;
+                    }
+                });
+                Utils.toast(`移动了 ${count} 项`); App.renderList();
+            }
+            else if (targetItem.type === 'book' && ids.length === 1 && ids[0] !== targetItem.id) {
+                const srcItem = StorageManager.get(ids[0]);
+                if (srcItem.type === 'book' && confirm(`合并 "${srcItem.name}" 到 "${targetItem.name}"？`)) {
+                    const existMap = new Set(targetItem.words.map(w=>w.word));
+                    srcItem.words.forEach(w => { if(!existMap.has(w.word)) targetItem.words.push(w); });
+                    StorageManager.save(targetItem.id, targetItem); StorageManager.remove(srcItem.id);
+                    App.renderList(); Utils.toast('合并完成');
+                }
+            }
+        } catch(err) {}
+    },
+    
+    handleDeleteBook: (bookId, event) => { event.stopPropagation(); if(confirm('确定删除？')) { StorageManager.remove(bookId); App.renderList(); } },
+    handleRenameBook: (bookId, event) => {
+        event.stopPropagation();
+        const book = StorageManager.get(bookId);
+        const newName = prompt("新名称：", book.name);
+        if (newName) { book.name = newName; StorageManager.save(bookId, book); App.renderList(); }
+    },
+    handleExportBook: (bookId, event) => {
+        event.stopPropagation();
+        const book = StorageManager.get(bookId);
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(book)], {type:'application/json'})); a.download = `${book.name}.json`; a.click();
+    },
+    handleDedupeBook: (bookId, event) => {
+        event.stopPropagation();
+        const book = StorageManager.get(bookId);
+        const map = new Map();
+        book.words.forEach(w => map.set(w.word, w));
+        if(map.size < book.words.length && confirm(`发现 ${book.words.length - map.size} 个重复，是否清理？`)) {
+            book.words = Array.from(map.values());
+            StorageManager.save(bookId, book); App.renderList(); Utils.toast("已去重");
+        } else { Utils.toast("无重复"); }
+    },
+    handlePoolMode: (bookId, event) => { event.stopPropagation(); Pool.start(bookId); },
+
+    setupDragDrop: () => {
+        const overlay = document.getElementById('drop-overlay');
+        document.body.ondragenter = (e) => { if(e.dataTransfer.types.includes('Files')) overlay.classList.add('active'); };
+        document.getElementById('drop-overlay').ondragleave = (e) => { if(e.target === overlay) overlay.classList.remove('active'); };
+        document.body.ondragover = (e) => e.preventDefault();
+        document.body.ondrop = (e) => {
+            if(e.target.closest('.item-card')) return; 
+            e.preventDefault(); overlay.classList.remove('active');
+            if(e.dataTransfer.files.length > 0) Array.from(e.dataTransfer.files).forEach(f => SyncSys.handleImportFile(f));
+        };
+    },
+    processImport: () => {
+        const text = document.getElementById('import-text').value;
+        const name = document.getElementById('import-name-input').value;
+        if(text) {
+            const words = SyncSys.parseText(text);
+            const id = Utils.uuid();
+            StorageManager.save(id, { id, name: name||'新单词本', words, type:'book', parentId: FolderSys.currentId, isSystem:false });
+            document.getElementById('import-modal').classList.add('hidden');
+            App.renderList();
+        }
+    },
+    showImportModal: () => document.getElementById('import-modal').classList.remove('hidden'),
+    handleFileInput: (input) => { Array.from(input.files).forEach(f => SyncSys.handleImportFile(f)); input.value=''; document.getElementById('import-modal').classList.add('hidden'); },
+    endTraining: () => { 
+        clearInterval(Training.timer); window.removeEventListener('keydown', Training.handleKeyDown);
+        document.getElementById('training-view').classList.add('hidden'); 
+        document.getElementById('bookshelf-view').classList.remove('hidden');
+        App.renderList(); 
     }
 };
 
 const SyncSys = {
-    exportData: () => {
+    exportData: () => { 
         const data = {};
-        for(let i=0; i<localStorage.length; i++) { 
-            const k = localStorage.key(i); 
-            if(k.startsWith('bk_')) data[k] = localStorage.getItem(k); 
-        }
-        const now = new Date();
-        const timestamp = now.getFullYear() +
-            String(now.getMonth()+1).padStart(2, '0') +
-            String(now.getDate()).padStart(2, '0') + "_" +
-            String(now.getHours()).padStart(2, '0') +
-            String(now.getMinutes()).padStart(2, '0') +
-            String(now.getSeconds()).padStart(2, '0');
-            
-        const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vocab_backup_${timestamp}.json`; a.click();
-        Utils.toast('全量进度已备份');
+        for(let i=0; i<localStorage.length; i++) { const k=localStorage.key(i); if(k.startsWith('bk_')) data[k]=localStorage.getItem(k); }
+        const b = new Blob([JSON.stringify(data)],{type:'application/json'});
+        const a = document.createElement('a'); a.href=URL.createObjectURL(b); a.download='backup.json'; a.click();
     },
-    parseTextToWords: (text) => {
+    parseText: (text) => {
         const words = [];
         text.split('\n').forEach(line => {
             line = line.trim(); if(!line) return;
@@ -371,157 +658,44 @@ const SyncSys = {
         return words;
     },
     handleImportFile: (file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const content = e.target.result;
+        const r = new FileReader();
+        r.onload = (e) => {
             try {
-                // 尝试解析 JSON
-                const json = JSON.parse(content);
-                
-                // 情况1：单本导入
-                if (json.words && Array.isArray(json.words)) {
-                    const newId = Utils.uuid();
-                    const newBook = { ...json, id: newId, isSystem: false };
-                    StorageManager.save(newId, newBook);
-                    Utils.toast(`导入: ${newBook.name}`);
-                    App.renderList(); // 只更新列表，不刷新页面
-                    return;
+                const json = JSON.parse(e.target.result);
+                if(json.words && Array.isArray(json.words)) {
+                    const id=Utils.uuid(); StorageManager.save(id, {...json, id, parentId: FolderSys.currentId, type:'book', isSystem:false});
+                    App.renderList(); return;
                 }
-
-                // 情况2：旧版数组
-                if (Array.isArray(json)) {
-                    let count = 0;
-                    json.forEach(oldBook => {
-                        const newBook = {
-                            id: Utils.uuid(),
-                            name: oldBook.name || "导入本",
-                            isSystem: false,
-                            words: (oldBook.words || []).map(w => ({
-                                word: w.word || w.spelling, meaning: w.meaning, status: 0, id: Utils.uuid()
-                            }))
-                        };
-                        StorageManager.save(newBook.id, newBook);
-                        count++;
-                    });
-                    Utils.toast(`已导入 ${count} 本`);
-                    App.renderList();
-                    return;
-                }
-
-                // 情况3：全量备份
-                const keys = Object.keys(json);
-                if (keys.some(k => k.startsWith('bk_'))) {
-                     if(confirm("识别为全量备份，是否恢复？")) {
-                        for(const k in json) { if(k.startsWith('bk_')) localStorage.setItem(k, json[k]); }
-                        Utils.toast(`恢复成功`);
-                        setTimeout(() => location.reload(), 500);
-                    }
-                    return;
-                }
+                throw new Error('Not JSON');
             } catch(err) {
-                // 情况4：纯文本
-                const words = SyncSys.parseTextToWords(content);
-                if(words.length > 0) {
-                    const newName = file.name.replace(/\.[^/.]+$/, ""); 
-                    StorageManager.save(Utils.uuid(), { id: Utils.uuid(), name: newName, words: words, isSystem: false });
-                    Utils.toast(`导入: ${newName}`);
+                const words = SyncSys.parseText(e.target.result);
+                if(words.length) {
+                    const id=Utils.uuid();
+                    const name = file.name.replace(/\.[^/.]+$/, "");
+                    StorageManager.save(id, {id, name, words, type:'book', parentId: FolderSys.currentId, isSystem:false});
                     App.renderList();
                 }
             }
         };
-        reader.readAsText(file);
-    }
-};
-
-const Pool = {
-    currentBookId: null,
-    start: (bookId) => {
-        Pool.currentBookId = bookId;
-        const book = StorageManager.get(bookId);
-        if(!book) return;
-        
-        const words = book.words.filter(w => w.status !== 2);
-        if(words.length === 0) { Utils.toast("本书已全部掌握！"); return; }
-
-        document.getElementById('bookshelf-view').classList.add('hidden');
-        document.getElementById('pool-view').classList.remove('hidden');
-        
-        const container = document.getElementById('pool-container');
-        container.innerHTML = '';
-        
-        words.sort(() => 0.5 - Math.random());
-
-        words.forEach(w => {
-            const el = document.createElement('div');
-            el.className = 'bubble';
-            el.draggable = true; 
-            el.dataset.state = 'word'; 
-            
-            el.innerHTML = `
-                <div class="bubble-layer layer-word">${w.word}</div>
-                <div class="bubble-layer layer-meaning">${w.meaning}</div>
-            `;
-            
-            el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', w.word); };
-            el.oncontextmenu = (e) => { e.preventDefault(); Utils.copyToClipboard(w.word); };
-
-            let pressTimer;
-            const startPress = () => { pressTimer = setTimeout(() => { Utils.copyToClipboard(w.word); navigator.vibrate && navigator.vibrate(50); }, 600); };
-            const cancelPress = () => clearTimeout(pressTimer);
-            el.addEventListener('touchstart', startPress);
-            el.addEventListener('touchend', cancelPress);
-            el.addEventListener('touchmove', cancelPress);
-            el.addEventListener('mousedown', startPress);
-            el.addEventListener('mouseup', cancelPress);
-            el.addEventListener('mouseleave', cancelPress);
-
-            el.onclick = () => {
-                if (el.actionTimer) clearTimeout(el.actionTimer);
-                if (el.classList.contains('mastered')) {
-                    el.classList.remove('mastered', 'vanish');
-                    el.dataset.state = 'word';
-                    StorageManager.updateWordStatus(Pool.currentBookId, w.id, 0); 
-                    return;
-                }
-                if (el.dataset.state === 'word') {
-                    el.dataset.state = 'meaning';
-                    el.actionTimer = setTimeout(() => { if (el.dataset.state === 'meaning') el.dataset.state = 'word'; }, 5000);
-                    return;
-                }
-                if (el.dataset.state === 'meaning') {
-                    el.dataset.state = 'mastered';
-                    el.classList.add('mastered');
-                    StorageManager.updateWordStatus(Pool.currentBookId, w.id, 2); 
-                    el.actionTimer = setTimeout(() => { el.classList.add('vanish'); }, 5000);
-                }
-            };
-            container.appendChild(el);
-        });
-    },
-    close: () => {
-        document.getElementById('pool-view').classList.add('hidden');
-        document.getElementById('bookshelf-view').classList.remove('hidden');
-        App.renderList(); 
+        r.readAsText(file);
     }
 };
 
 const Training = {
-    queue: [], current: [], timer: null, round: 0, 
-    hasInteracted: false, isPaused: false, timeLeft: 60, focusIndex: -1,
-    globalReveal: false, currentBookId: null,
-    
-    start: (bookId) => {
-        const book = StorageManager.get(bookId);
-        if(!book || !book.words.length) { Utils.toast('空单词本', 'error'); return; }
-        Training.currentBookId = bookId; 
-        let words = book.words.filter(w => w.status !== 2);
-        if (words.length === 0) { Utils.toast("本书单词已全部掌握！🎉"); return; }
-
-        const sortType = document.getElementById('sort-pref').value;
-        if (sortType === 'random') words.sort(() => 0.5 - Math.random());
-        else if (sortType === 'az') words.sort((a,b) => a.word.localeCompare(b.word));
-
-        Training.queue = words;
+    queue: [], current: [], round: 0, masteredPool: [], currentBookId: null, timer: null,
+    start: (id) => {
+        const book = StorageManager.get(id);
+        if(!book || !book.words.length) return Utils.toast('空书');
+        Training.currentBookId = id;
+        Training.masteredPool = book.words.filter(w=>w.status===2);
+        const pending = book.words.filter(w=>w.status!==2);
+        if(!pending.length) return Utils.toast('已全部掌握');
+        
+        const pref = document.getElementById('sort-pref').value;
+        if(pref === 'random') Utils.shuffle(pending);
+        else if(pref === 'az') pending.sort((a,b)=>a.word.localeCompare(b.word));
+        
+        Training.queue = pending;
         Training.round = 0;
         document.getElementById('bookshelf-view').classList.add('hidden');
         document.getElementById('training-view').classList.remove('hidden');
@@ -530,21 +704,34 @@ const Training = {
         Training.next();
     },
     next: () => {
-        clearInterval(Training.timer);
         Training.round++;
         document.getElementById('round-count').innerText = Training.round;
-        const batch = Training.queue.splice(0, 8);
-        if(!batch.length) { alert('🎉 本轮训练完成！'); App.endTraining(); return; }
-        
-        Training.current = batch.map(w => ({...w, status: 0})); 
-        Training.hasInteracted = false; Training.focusIndex = -1; Training.timeLeft = 60; Training.isPaused = false;
-        Training.render(); Training.startTimer();
+        const isReviewRound = (Training.round % 3 === 0);
+        const reviewBadge = document.getElementById('review-badge');
+        let batch = [];
+        if(isReviewRound && Training.masteredPool.length > 0) {
+            reviewBadge.classList.remove('hidden');
+            const pool = [...Training.masteredPool];
+            Utils.shuffle(pool);
+            const review = pool.slice(0, 2);
+            const newWords = Training.queue.splice(0, 8);
+            batch = [...newWords, ...review];
+            Utils.shuffle(batch);
+        } else {
+            reviewBadge.classList.add('hidden');
+            batch = Training.queue.splice(0, 8);
+        }
+        if(!batch.length) { alert('完成'); return App.endTraining(); }
+        Training.current = batch.map(w=>({...w, status: w.status===2?2:0})); 
+        Training.render();
+        Training.startTimer();
         Training.setFocus(0, true);
     },
     startTimer: () => {
         clearInterval(Training.timer);
+        Training.timeLeft = 60;
         const bar = document.getElementById('timer-progress');
-        bar.style.transition = 'none'; bar.style.width = (Training.timeLeft/60)*100 + '%'; bar.offsetHeight; bar.style.transition = 'width 1s linear';
+        bar.style.transition = 'none'; bar.style.width = '100%'; bar.offsetHeight; bar.style.transition = 'width 1s linear';
         Training.timer = setInterval(() => {
             if(Training.isPaused) return; 
             Training.timeLeft--;
@@ -555,64 +742,60 @@ const Training = {
     togglePause: () => {
         Training.isPaused = !Training.isPaused;
         const overlay = document.getElementById('pause-overlay');
-        const btn = document.getElementById('pause-btn');
-        if(Training.isPaused) {
-            overlay.classList.remove('hidden'); btn.innerText = "▶️";
-            document.getElementById('timer-progress').style.transition = 'none';
-        } else {
-            overlay.classList.add('hidden'); btn.innerText = "⏸";
-            document.getElementById('timer-progress').style.transition = 'width 1s linear';
-        }
+        if(Training.isPaused) { overlay.classList.remove('hidden'); document.getElementById('timer-progress').style.transition = 'none'; } 
+        else { overlay.classList.add('hidden'); document.getElementById('timer-progress').style.transition = 'width 1s linear'; }
     },
-    toggleAllMeanings: () => {
-        Training.globalReveal = !Training.globalReveal;
-        document.querySelectorAll('.word-card').forEach(el => {
-            if(Training.globalReveal) el.classList.add('force-reveal');
-            else el.classList.remove('force-reveal');
+    render: () => {
+        const c = document.getElementById('card-container'); c.innerHTML='';
+        c.style.setProperty('--cols', Math.ceil(Training.current.length / 2));
+        Training.current.forEach(w => {
+            const el = document.createElement('div'); el.className = `word-card ${w.status===2?'is-mastered':''} ${Training.masteredPool.find(mp=>mp.id===w.id)?'is-review-item':''}`;
+            el.id='card-'+w.id; el.draggable = true;
+            el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', w.word); };
+            el.oncontextmenu = (e) => { e.preventDefault(); Utils.copyToClipboard(w.word); };
+            el.innerHTML = `<div class="card-inner"><div class="card-front"><div class="check-mark">✅</div><div class="section-top"><div class="word-text" title="${w.word}">${w.word}</div></div><div class="section-bottom"></div></div><div class="card-back"><div class="section-top"><div class="word-text">${w.word}</div></div><div class="section-bottom"><div class="word-meaning">${w.meaning}</div></div></div>`;
+            el.onclick = () => Training.handleCardClick(w.id);
+            c.appendChild(el);
         });
     },
-    finishBatch: () => {
-        if (!Training.hasInteracted && Training.timeLeft <= 0) { App.endTraining(); return; }
-        
-        const notMastered = Training.current.filter(w => w.status !== 2);
-        if(notMastered.length) { 
-            const mb = StorageManager.get('system_mistakes');
-            notMastered.forEach(w => { 
-                if(!mb.words.find(x=>x.word===w.word)) mb.words.unshift({...w, id:Utils.uuid(), status:0}); 
-            });
-            StorageManager.save('system_mistakes', mb);
-            Training.queue.push(...notMastered); 
-            Utils.toast(`${notMastered.length} 个未掌握`); 
-        } else { Utils.toast('全对！'); }
-
-        Training.current.forEach(w => { StorageManager.updateWordStatus(Training.currentBookId, w.id, w.status); });
-        Training.next();
-    },
-    handleCardClick: (id, event) => {
+    handleCardClick: (id) => {
         if(Training.isPaused) return;
         Training.hasInteracted = true;
         const index = Training.current.findIndex(x => x.id === id);
         if(index === -1) return;
         const w = Training.current[index];
         const el = document.getElementById('card-' + id);
-        Training.setFocus(index, false); 
-        if (w.status === 2) { w.status = 1; el.classList.remove('is-mastered'); el.classList.add('is-reviewing'); }
-        else if (w.status === 1) { w.status = 2; el.classList.remove('is-reviewing'); el.classList.add('is-mastered'); }
-        else { w.status = 1; el.classList.add('is-reviewing'); }
+        Training.setFocus(index, false);
+        if(w.status===2) { w.status=1; el.classList.remove('is-mastered'); el.classList.add('is-reviewing'); }
+        else if(w.status===1) { w.status=2; el.classList.remove('is-reviewing'); el.classList.add('is-mastered'); }
+        else { w.status=1; el.classList.add('is-reviewing'); }
         if(Training.current.every(x => x.status === 2)) setTimeout(Training.finishBatch, 500);
     },
-    setFocus: (index, isKeyboard = false) => {
+    finishBatch: () => {
+        if (!Training.hasInteracted && Training.timeLeft <= 0) { App.endTraining(); return; }
+        const notMastered = Training.current.filter(w => w.status !== 2);
+        if(notMastered.length) { 
+            const mb = StorageManager.get('system_mistakes');
+            notMastered.forEach(w => { 
+                if(!mb.words.find(x=>x.word===w.word)) mb.words.unshift({...w, id:Utils.uuid(), status:0}); 
+                if (Training.queue.findIndex(q => q.id === w.id) === -1) Training.queue.push(w); 
+            });
+            StorageManager.save('system_mistakes', mb);
+            Utils.toast(`${notMastered.length} 个未掌握`); 
+        } else { Utils.toast('全对！'); }
+        Training.current.forEach(w => { StorageManager.updateStatus(Training.currentBookId, w.id, w.status); });
+        Training.next();
+    },
+    setFocus: (index, isKeyboard=false) => {
         if (index < 0 || index >= Training.current.length) return;
-        if(Training.focusIndex !== -1) { 
-            const oldEl = document.getElementById('card-' + Training.current[Training.focusIndex].id); 
-            if(oldEl) oldEl.classList.remove('is-keyboard-focus'); 
-        }
+        if(Training.focusIndex !== -1) document.getElementById('card-' + Training.current[Training.focusIndex].id)?.classList.remove('is-keyboard-focus');
         Training.focusIndex = index;
         if (isKeyboard) {
             const newEl = document.getElementById('card-' + Training.current[Training.focusIndex].id);
             if(newEl) { newEl.classList.add('is-keyboard-focus'); newEl.scrollIntoView({behavior: "smooth", block: "center"}); }
         }
     },
+    toggleAllMeanings: () => document.querySelectorAll('.word-card').forEach(el=>el.classList.add('force-reveal')),
     handleKeyDown: (e) => {
         if(document.getElementById('training-view').classList.contains('hidden')) return;
         if(Training.isPaused && e.code !== 'KeyP') return;
@@ -638,214 +821,45 @@ const Training = {
         else if (isFlip) { e.preventDefault(); if (nextIndex !== -1) Training.handleCardClick(Training.current[nextIndex].id); Training.setFocus(nextIndex, true); }
         if (nextIndex !== Training.focusIndex && nextIndex < Training.current.length) Training.setFocus(nextIndex, true); 
     },
-    render: () => {
-        const c = document.getElementById('card-container'); c.innerHTML='';
-        c.style.setProperty('--cols', Math.ceil(Training.current.length / 2));
-        Training.current.forEach(w => {
-            const el = document.createElement('div'); el.className='word-card'; el.id='card-'+w.id;
-            el.draggable = true;
-            el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', w.word); };
-            el.oncontextmenu = (e) => { e.preventDefault(); Utils.copyToClipboard(w.word); };
-            if(w.status === 1) el.classList.add('is-reviewing');
-            if(w.status === 2) el.classList.add('is-mastered');
-            if(Training.globalReveal) el.classList.add('force-reveal');
-            el.onclick = (e) => Training.handleCardClick(w.id, e);
-            el.innerHTML = `
-                <div class="card-inner">
-                    <div class="card-front"><div class="check-mark">✅</div><div class="section-top"><div class="word-text" title="${w.word}">${w.word}</div></div><div class="section-bottom"></div></div>
-                    <div class="card-back"><div class="section-top"><div class="word-text">${w.word}</div></div><div class="section-bottom"><div class="word-meaning">${w.meaning}</div></div></div>
-                </div>`;
-            c.appendChild(el);
-        });
-    }
+    hasInteracted: false, isPaused: false, timeLeft: 60, focusIndex: -1
 };
 
-const App = {
-    isManageMode: false,
-    openMenuId: null, // 追踪当前打开的菜单ID
-    init: () => { 
-        if(!StorageManager.get('system_mistakes')) StorageManager.save('system_mistakes', {id:'system_mistakes', name:'📅 错题本', words:[], isSystem:true}); 
-        App.renderList(); 
-        App.setupGlobalDragDrop();
-        
-        // 点击空白关闭菜单
-        document.addEventListener('click', (e) => {
-            if(!e.target.closest('.book-actions')) App.closeAllMenus();
-        });
-    },
-    toggleManageMode: () => { 
-        App.isManageMode = !App.isManageMode; 
-        document.getElementById('manage-btn').innerText = App.isManageMode ? '完成' : '⚙️ 管理'; 
-        document.getElementById('manage-btn').style.color = App.isManageMode ? 'var(--primary)' : 'var(--text-sub)'; 
+const Pool = { 
+    close: () => {
+        document.getElementById('pool-view').classList.add('hidden');
+        document.getElementById('bookshelf-view').classList.remove('hidden');
         App.renderList(); 
     },
-    toggleMenu: (bookId, event) => {
-        event.stopPropagation();
-        const menu = document.getElementById(`menu-${bookId}`);
-        const wasHidden = menu.style.display !== 'flex';
-        App.closeAllMenus();
-        if(wasHidden) {
-            menu.classList.add('show');
-            menu.style.display = 'flex';
-        }
-    },
-    closeAllMenus: () => {
-        document.querySelectorAll('.menu-dropdown').forEach(el => {
-            el.classList.remove('show');
-            el.style.display = 'none';
-        });
-    },
-    handleDeleteBook: (bookId, event) => { 
-        event.stopPropagation(); 
-        if(confirm('确定要删除吗？')) { StorageManager.remove(bookId); App.renderList(); } 
-    },
-    handleRenameBook: (bookId, event) => {
-        event.stopPropagation();
+    start: (bookId) => {
+        Pool.currentBookId = bookId;
         const book = StorageManager.get(bookId);
-        const newName = prompt("请输入新的单词本名称：", book.name);
-        if (newName && newName.trim() !== "") {
-            book.name = newName.trim();
-            StorageManager.save(bookId, book);
-            App.renderList();
-            Utils.toast("重命名成功");
-        }
-    },
-    handleExportBook: (bookId, event) => {
-        event.stopPropagation();
-        const book = StorageManager.get(bookId);
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(book)], {type:'application/json'})); a.download = `${book.name}.json`; a.click();
-    },
-    handleDedupeBook: (bookId, event) => {
-        event.stopPropagation();
-        const book = StorageManager.get(bookId);
-        if (!book) return;
-        const uniqueMap = new Map();
-        const originalCount = book.words.length;
-        book.words.forEach(w => {
-            if (!uniqueMap.has(w.word)) { uniqueMap.set(w.word, w); } 
-            else { const exist = uniqueMap.get(w.word); if (w.status > exist.status) uniqueMap.set(w.word, w); }
-        });
-        const newWords = Array.from(uniqueMap.values());
-        const removed = originalCount - newWords.length;
-        if (removed > 0) {
-            if(confirm(`发现 ${removed} 个重复项，确定清理？`)) {
-                book.words = newWords;
-                StorageManager.save(bookId, book);
-                App.renderList();
-                Utils.toast(`清理了 ${removed} 个重复词`);
-            }
-        } else { Utils.toast("没有发现重复词"); }
-    },
-    handlePoolMode: (bookId, event) => {
-        event.stopPropagation();
-        Pool.start(bookId);
-    },
-    renderList: () => {
-        const list = document.getElementById('book-list'); list.innerHTML = '';
-        const books = StorageManager.getAllBooks();
-        
-        books.forEach(b => {
-            const el = document.createElement('div'); el.className = 'book-card';
-            el.draggable = true;
-            
-            const total = b.words.length;
-            const mastered = b.words.filter(w => w.status === 2).length;
-            const remaining = total - mastered;
-
-            el.ondragstart = (e) => { e.dataTransfer.setData('sourceId', b.id); };
-            el.ondragover = (e) => { e.preventDefault(); el.classList.add('drag-over'); };
-            el.ondragleave = () => { el.classList.remove('drag-over'); };
-            el.ondrop = (e) => {
-                e.preventDefault(); el.classList.remove('drag-over');
-                const srcId = e.dataTransfer.getData('sourceId');
-                if(srcId && srcId !== b.id) App.mergeBooks(srcId, b.id);
+        if(!book) return;
+        const words = book.words.filter(w => w.status !== 2);
+        if(words.length === 0) { Utils.toast("本书已全部掌握！"); return; }
+        document.getElementById('bookshelf-view').classList.add('hidden');
+        document.getElementById('pool-view').classList.remove('hidden');
+        const container = document.getElementById('pool-container');
+        container.innerHTML = '';
+        Utils.shuffle(words);
+        words.forEach(w => {
+            const el = document.createElement('div'); el.className = 'bubble'; el.draggable = true; el.dataset.state = 'word'; 
+            el.innerHTML = `<div class="bubble-layer layer-word">${w.word}</div><div class="bubble-layer layer-meaning">${w.meaning}</div>`;
+            el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', w.word); };
+            el.oncontextmenu = (e) => { e.preventDefault(); Utils.copyToClipboard(w.word); };
+            let pressTimer;
+            const startPress = () => { pressTimer = setTimeout(() => { Utils.copyToClipboard(w.word); navigator.vibrate && navigator.vibrate(50); }, 600); };
+            const cancelPress = () => clearTimeout(pressTimer);
+            el.addEventListener('touchstart', startPress); el.addEventListener('touchend', cancelPress);
+            el.addEventListener('touchmove', cancelPress); el.addEventListener('mousedown', startPress); el.addEventListener('mouseup', cancelPress); el.addEventListener('mouseleave', cancelPress);
+            el.onclick = () => {
+                if (el.actionTimer) clearTimeout(el.actionTimer);
+                if (el.classList.contains('mastered')) { el.classList.remove('mastered', 'vanish'); el.dataset.state = 'word'; StorageManager.updateStatus(Pool.currentBookId, w.id, 0); return; }
+                if (el.dataset.state === 'word') { el.dataset.state = 'meaning'; el.actionTimer = setTimeout(() => { if (el.dataset.state === 'meaning') el.dataset.state = 'word'; }, 5000); return; }
+                if (el.dataset.state === 'meaning') { el.dataset.state = 'mastered'; el.classList.add('mastered'); StorageManager.updateStatus(Pool.currentBookId, w.id, 2); el.actionTimer = setTimeout(() => { el.classList.add('vanish'); }, 5000); }
             };
-            el.onclick = () => { if(!App.isManageMode) Training.start(b.id); };
-            
-            // --- UI 修正区 ---
-            // 更多菜单 HTML 生成
-            const menuHtml = !b.isSystem ? `
-                <div class="menu-dropdown" id="menu-${b.id}">
-                    <button class="menu-item" onclick="App.handleRenameBook('${b.id}', event)">✏️ 重命名</button>
-                    <button class="menu-item" onclick="App.handleDedupeBook('${b.id}', event)">🧹 去重</button>
-                    <button class="menu-item" onclick="App.handleExportBook('${b.id}', event)">📥 导出</button>
-                    <button class="menu-item danger" onclick="App.handleDeleteBook('${b.id}', event)">🗑 删除</button>
-                </div>
-            ` : `
-                 <div class="menu-dropdown" id="menu-${b.id}">
-                    <button class="menu-item" onclick="App.handleExportBook('${b.id}', event)">📥 导出</button>
-                </div>
-            `;
-
-            el.innerHTML = `
-                <div class="book-info">
-                    <div class="book-title">${b.name}</div>
-                    <div class="book-meta">
-                        ${remaining > 0 ? `<span class="badge-unmastered">待学 ${remaining}</span>` : `<span class="badge-done">已完成</span>`}
-                        <span>/ 总 ${total}</span>
-                        ${b.isSystem ? '<span>(系统)</span>' : ''}
-                    </div>
-                </div>
-                <div class="book-actions" style="${App.isManageMode ? 'opacity:1' : ''}">
-                    <button class="btn btn-ghost" title="气泡筛选" onclick="App.handlePoolMode('${b.id}', event)">🌊</button>
-                    <button class="btn btn-ghost btn-icon" title="更多" onclick="App.toggleMenu('${b.id}', event)">⋮</button>
-                    ${menuHtml}
-                </div>
-            `;
-            list.appendChild(el);
+            container.appendChild(el);
         });
-        if(books.length === 0) list.innerHTML = '<div style="text-align:center;color:#999;padding:40px; grid-column: 1/-1;">书架是空的</div>';
-    },
-    mergeBooks: (srcId, targetId) => {
-        const src = StorageManager.get(srcId);
-        const tgt = StorageManager.get(targetId);
-        if(confirm(`合并 "${src.name}" 到 "${tgt.name}"？`)) {
-            const existWords = new Set(tgt.words.map(w => w.word));
-            let count = 0;
-            src.words.forEach(w => {
-                if(!existWords.has(w.word)) { tgt.words.push(w); count++; }
-            });
-            StorageManager.save(targetId, tgt);
-            StorageManager.remove(srcId);
-            App.renderList();
-            Utils.toast(`合并成功，新增 ${count} 词`);
-        }
-    },
-    setupGlobalDragDrop: () => {
-        const overlay = document.getElementById('drop-overlay');
-        document.body.ondragenter = (e) => { if(e.dataTransfer.types.includes('Files')) overlay.classList.add('active'); };
-        overlay.ondragleave = (e) => { if(e.target === overlay) overlay.classList.remove('active'); };
-        document.body.ondragover = (e) => e.preventDefault();
-        
-        // --- 批量拖拽修正核心区 ---
-        document.body.ondrop = (e) => {
-            e.preventDefault(); overlay.classList.remove('active');
-            if(e.dataTransfer.files.length > 0) {
-                // 循环处理所有拖入的文件
-                Array.from(e.dataTransfer.files).forEach(file => {
-                    SyncSys.handleImportFile(file);
-                });
-            }
-        };
-    },
-    processImport: () => {
-        const text = document.getElementById('import-text').value;
-        const name = document.getElementById('import-name-input').value;
-        if(!text) return;
-        const words = SyncSys.parseTextToWords(text);
-        StorageManager.save(Utils.uuid(), { id: Utils.uuid(), name: name || '导入 '+new Date().toLocaleDateString(), words: words, isSystem: false });
-        App.closeModals(); App.renderList(); Utils.toast(`导入 ${words.length} 词`);
-    },
-    showImportModal: () => { document.getElementById('import-modal').classList.remove('hidden'); },
-    handleFileInput: (input) => {
-        if(input.files && input.files.length > 0) {
-            Array.from(input.files).forEach(file => SyncSys.handleImportFile(file));
-            input.value = ''; 
-            App.closeModals();
-        }
-    },
-    closeModals: () => document.querySelectorAll('.modal-overlay').forEach(e=>e.classList.add('hidden')),
-    endTraining: () => { clearInterval(Training.timer); window.removeEventListener('keydown', Training.handleKeyDown); document.getElementById('training-view').classList.add('hidden'); document.getElementById('bookshelf-view').classList.remove('hidden'); App.renderList(); }
+    }
 };
 
 window.onload = App.init;
