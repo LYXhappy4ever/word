@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>单词训练器 v15.0 (移动适配版)</title>
+    <title>单词训练器 v17.0 (全交互版)</title>
     <style>
         :root {
             --primary: #4F46E5;
@@ -79,6 +79,8 @@
             align-items: center; justify-items: center;
         }
         
+        .bubble:active { cursor: grabbing; box-shadow: 0 8px 16px rgba(0,0,0,0.1); transform: scale(1.05); z-index: 10; }
+
         .bubble-layer {
             grid-area: stack; padding: 8px 16px; text-align: center;
             width: max-content; max-width: 220px;
@@ -241,7 +243,7 @@
             <span style="width: 40px;"></span>
         </header>
         <div style="padding:10px; text-align:center; color:#666; font-size:12px; background:#fff; border-bottom:1px solid #eee;">
-            自动乱序 · 5s自动回退(未掌握) · 点两下掌握(5s隐身)
+            拖拽/长按/右键复制 · 5s自动回退 · 5s隐身
         </div>
         <div id="pool-container" class="pool-container"></div>
     </div>
@@ -275,9 +277,17 @@ const Utils = {
     uuid: () => Date.now().toString(36) + Math.random().toString(36).substr(2),
     toast: (msg, type='success') => {
         const t = document.getElementById('toast');
-        t.innerHTML = (type==='error'?'❌ ':'✅ ') + msg;
+        t.innerText = (type==='error'?'❌ ':'✅ ') + msg;
         t.style.opacity = 1; t.style.bottom = '40px';
         setTimeout(() => { t.style.opacity = 0; t.style.bottom = '30px'; }, 2000);
+    },
+    copyToClipboard: (text) => {
+        navigator.clipboard.writeText(text).then(() => {
+            Utils.toast('已复制: ' + text);
+        }).catch(err => {
+            console.error('Copy failed', err);
+            Utils.toast('复制失败', 'error');
+        });
     }
 };
 
@@ -315,7 +325,6 @@ const SyncSys = {
             if(k.startsWith('bk_')) data[k] = localStorage.getItem(k); 
         }
         const now = new Date();
-        // 格式: YYYYMMDD_HHmmss
         const timestamp = now.getFullYear() +
             String(now.getMonth()+1).padStart(2, '0') +
             String(now.getDate()).padStart(2, '0') + "_" +
@@ -388,6 +397,7 @@ const Pool = {
         words.forEach(w => {
             const el = document.createElement('div');
             el.className = 'bubble';
+            el.draggable = true; 
             el.dataset.state = 'word'; 
             
             el.innerHTML = `
@@ -395,6 +405,37 @@ const Pool = {
                 <div class="bubble-layer layer-meaning">${w.meaning}</div>
             `;
             
+            // 拖拽复制
+            el.ondragstart = (e) => {
+                const text = el.dataset.state === 'meaning' ? w.meaning : w.word;
+                e.dataTransfer.setData('text/plain', text);
+            };
+
+            // 右键复制
+            el.oncontextmenu = (e) => {
+                e.preventDefault();
+                const text = el.dataset.state === 'meaning' ? w.meaning : w.word;
+                Utils.copyToClipboard(text);
+            };
+
+            // 长按复制 (Mobile)
+            let pressTimer;
+            const startPress = () => {
+                pressTimer = setTimeout(() => {
+                    const text = el.dataset.state === 'meaning' ? w.meaning : w.word;
+                    Utils.copyToClipboard(text);
+                    navigator.vibrate && navigator.vibrate(50); 
+                }, 600); 
+            };
+            const cancelPress = () => clearTimeout(pressTimer);
+            el.addEventListener('touchstart', startPress);
+            el.addEventListener('touchend', cancelPress);
+            el.addEventListener('touchmove', cancelPress);
+            el.addEventListener('mousedown', startPress);
+            el.addEventListener('mouseup', cancelPress);
+            el.addEventListener('mouseleave', cancelPress);
+
+            // 点击逻辑
             el.onclick = () => {
                 if (el.actionTimer) clearTimeout(el.actionTimer);
 
@@ -616,7 +657,6 @@ const App = {
         const book = StorageManager.get(bookId);
         const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(book)], {type:'application/json'})); a.download = `${book.name}.json`; a.click();
     },
-    // 手动去重
     handleDedupeBook: (bookId, event) => {
         event.stopPropagation();
         const book = StorageManager.get(bookId);
@@ -734,11 +774,10 @@ const App = {
         App.closeModals(); App.renderList(); Utils.toast(`导入 ${words.length} 词`);
     },
     showImportModal: () => { document.getElementById('import-modal').classList.remove('hidden'); },
-    // 移动端文件选择器桥接
     handleFileInput: (input) => {
         if(input.files && input.files[0]) {
             SyncSys.handleImportFile(input.files[0]);
-            input.value = ''; // 重置
+            input.value = ''; 
             App.closeModals();
         }
     },
