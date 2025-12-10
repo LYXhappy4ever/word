@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>单词训练器 v18.0 (优化闭环版)</title>
+    <title>单词训练器 v21.0 (批量导入&UI优化版)</title>
     <style>
         :root {
             --primary: #4F46E5;
@@ -31,6 +31,7 @@
         .btn-ghost { background: transparent; color: var(--text-sub); }
         .btn-ghost:hover { background: rgba(0,0,0,0.05); color: var(--primary); }
         .btn-outline { border: 1px solid #E5E7EB; background: white; color: var(--text-main); }
+        .btn-icon { padding: 8px; border-radius: 50%; width: 32px; height: 32px; }
         
         select { padding: 8px 30px 8px 12px; border-radius: 8px; border: 1px solid #d1d5db; background: white; font-size: 13px; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23666%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 10px; }
 
@@ -50,20 +51,43 @@
             background: var(--bg-card); border-radius: var(--radius); padding: 16px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 2px solid transparent;
             display: flex; justify-content: space-between; align-items: center;
-            height: 90px; position: relative; overflow: hidden; transition: all 0.2s; cursor: pointer;
+            height: 90px; position: relative; transition: all 0.2s; cursor: pointer;
+            /* Remove overflow hidden to show dropdown */
+            z-index: 1;
         }
-        .book-card:hover { transform: translateY(-2px); box-shadow: 0 8px 12px -3px rgba(0,0,0,0.1); border-color: #e5e7eb; }
+        .book-card:hover { transform: translateY(-2px); box-shadow: 0 8px 12px -3px rgba(0,0,0,0.1); border-color: #e5e7eb; z-index: 10; }
         .book-card.drag-over { border: 2px dashed var(--success); background: #ecfdf5; transform: scale(0.98); }
         
-        .book-info { flex: 1; overflow: hidden; }
+        .book-info { flex: 1; overflow: hidden; padding-right: 10px; }
         .book-title { font-weight: 700; font-size: 16px; margin-bottom: 4px; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .book-meta { font-size: 12px; color: #9CA3AF; display: flex; gap: 10px; align-items: center; }
         .badge-unmastered { color: var(--warning); font-weight: 600; background: #fffbeb; padding: 2px 6px; border-radius: 4px; }
         .badge-done { color: var(--success); font-weight: 600; background: #ecfdf5; padding: 2px 6px; border-radius: 4px; }
         
-        .book-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
-        .book-card:hover .book-actions { opacity: 1; }
+        .book-actions { display: flex; gap: 4px; align-items: center; position: relative; }
         
+        /* 下拉菜单样式 */
+        .menu-dropdown {
+            position: absolute; top: 100%; right: 0;
+            background: white; border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid #f3f4f6;
+            min-width: 120px;
+            padding: 5px;
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+        }
+        .menu-dropdown.show { display: flex; }
+        .menu-item {
+            padding: 8px 12px; text-align: left; background: none; border: none;
+            width: 100%; cursor: pointer; font-size: 13px; color: var(--text-main);
+            border-radius: 6px; display: flex; align-items: center; gap: 8px;
+        }
+        .menu-item:hover { background: #f3f4f6; }
+        .menu-item.danger { color: var(--danger); }
+        .menu-item.danger:hover { background: #fee2e2; }
+
         /* --- 词池模式 --- */
         #pool-view { background: #f0f4f8; }
         .pool-container { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; justify-content: center; }
@@ -172,8 +196,8 @@
 
     <div id="drop-overlay">
         <div style="font-size: 4rem; margin-bottom: 10px;">📂</div>
-        <div style="font-size: 1.5rem; font-weight: 700;">释放导入文件</div>
-        <div style="opacity: 0.8; margin-top: 5px;">支持 backup.json (含学习进度)</div>
+        <div style="font-size: 1.5rem; font-weight: 700;">释放文件批量导入</div>
+        <div style="opacity: 0.8; margin-top: 5px;">支持多选 txt/json 文件</div>
     </div>
 
     <div id="bookshelf-view" class="view">
@@ -200,7 +224,7 @@
             <div id="book-list" class="book-list"></div>
             
             <div style="text-align: center; margin-top: 30px; color: #9ca3af; font-size: 12px;">
-                提示：拖拽单词本可合并 · 拖入文件可还原备份
+                提示：拖拽单词本可合并 · 拖拽多文件可批量导入
             </div>
         </div>
     </div>
@@ -252,20 +276,20 @@
         <div class="modal">
             <h3 style="margin-top:0">导入 / 新建</h3>
             <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:15px;">
-                 <label style="display:block; color:#666; font-size:12px; margin-bottom:5px;">方式一：导入备份文件 (移动端推荐)</label>
-                 <button class="btn btn-outline" style="width:100%;" onclick="document.getElementById('file-input').click()">📂 选择 JSON 备份文件</button>
-                 <input type="file" id="file-input" class="hidden" onchange="App.handleFileInput(this)">
+                 <label style="display:block; color:#666; font-size:12px; margin-bottom:5px;">方式一：批量导入文件</label>
+                 <button class="btn btn-outline" style="width:100%;" onclick="document.getElementById('file-input').click()">📂 选择多个文件</button>
+                 <input type="file" id="file-input" class="hidden" multiple onchange="App.handleFileInput(this)">
             </div>
             
             <div>
-                <label style="display:block; color:#666; font-size:12px; margin-bottom:5px;">方式二：粘贴文本</label>
+                <label style="display:block; color:#666; font-size:12px; margin-bottom:5px;">方式二：粘贴文本创建</label>
                 <input type="text" id="import-name-input" placeholder="单词本名称" style="width:100%; padding:10px; border:2px solid #E5E7EB; border-radius:10px; outline:none; margin-bottom: 10px;">
                 <textarea id="import-text" class="code-input" placeholder="apple 苹果&#10;banana 香蕉"></textarea>
             </div>
             
             <div style="display:flex; gap:10px; justify-content: flex-end; margin-top:15px;">
                 <button class="btn btn-ghost" onclick="App.closeModals()">取消</button>
-                <button class="btn btn-primary" onclick="App.processImport()">确认导入</button>
+                <button class="btn btn-primary" onclick="App.processImport()">确认创建</button>
             </div>
         </div>
     </div>
@@ -336,41 +360,74 @@ const SyncSys = {
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vocab_backup_${timestamp}.json`; a.click();
         Utils.toast('全量进度已备份');
     },
+    parseTextToWords: (text) => {
+        const words = [];
+        text.split('\n').forEach(line => {
+            line = line.trim(); if(!line) return;
+            const match = line.match(/^([^\s]+)\s+(?:(\/[^\/]+\/)\s+)?(.+)$/);
+            if(match) words.push({word: match[1], meaning: match[3], status: 0, id: Utils.uuid()});
+            else { const parts = line.split(/\s+/); if(parts.length>1) words.push({word: parts[0], meaning: parts.slice(1).join(' '), status: 0, id: Utils.uuid()}); }
+        });
+        return words;
+    },
     handleImportFile: (file) => {
         const reader = new FileReader();
         reader.onload = (e) => {
+            const content = e.target.result;
             try {
-                const json = JSON.parse(e.target.result);
-                if (Array.isArray(json)) {
-                    if(confirm("检测到旧版格式，是否修复导入？")) {
-                        let count = 0;
-                        json.forEach(oldBook => {
-                            const newBook = {
-                                id: oldBook.id || Utils.uuid(),
-                                name: oldBook.name || "导入本",
-                                isSystem: false,
-                                words: (oldBook.words || []).map(w => ({
-                                    word: w.word || w.spelling,
-                                    meaning: w.meaning,
-                                    status: (w.status === 2 || w.mastered) ? 2 : 0, 
-                                    id: Utils.uuid()
-                                }))
-                            };
-                            StorageManager.save(newBook.id, newBook);
-                            count++;
-                        });
-                        Utils.toast(`导入 ${count} 本书`);
-                        setTimeout(() => location.reload(), 1000);
-                    }
-                } else {
-                    if(confirm("恢复备份将覆盖同名数据，继续？")) {
-                        let count = 0;
-                        for(const k in json) { if(k.startsWith('bk_')) { localStorage.setItem(k, json[k]); count++; } }
-                        Utils.toast(`恢复 ${count} 项数据`);
-                        setTimeout(() => location.reload(), 1000);
-                    }
+                // 尝试解析 JSON
+                const json = JSON.parse(content);
+                
+                // 情况1：单本导入
+                if (json.words && Array.isArray(json.words)) {
+                    const newId = Utils.uuid();
+                    const newBook = { ...json, id: newId, isSystem: false };
+                    StorageManager.save(newId, newBook);
+                    Utils.toast(`导入: ${newBook.name}`);
+                    App.renderList(); // 只更新列表，不刷新页面
+                    return;
                 }
-            } catch(err) { alert("文件无效"); }
+
+                // 情况2：旧版数组
+                if (Array.isArray(json)) {
+                    let count = 0;
+                    json.forEach(oldBook => {
+                        const newBook = {
+                            id: Utils.uuid(),
+                            name: oldBook.name || "导入本",
+                            isSystem: false,
+                            words: (oldBook.words || []).map(w => ({
+                                word: w.word || w.spelling, meaning: w.meaning, status: 0, id: Utils.uuid()
+                            }))
+                        };
+                        StorageManager.save(newBook.id, newBook);
+                        count++;
+                    });
+                    Utils.toast(`已导入 ${count} 本`);
+                    App.renderList();
+                    return;
+                }
+
+                // 情况3：全量备份
+                const keys = Object.keys(json);
+                if (keys.some(k => k.startsWith('bk_'))) {
+                     if(confirm("识别为全量备份，是否恢复？")) {
+                        for(const k in json) { if(k.startsWith('bk_')) localStorage.setItem(k, json[k]); }
+                        Utils.toast(`恢复成功`);
+                        setTimeout(() => location.reload(), 500);
+                    }
+                    return;
+                }
+            } catch(err) {
+                // 情况4：纯文本
+                const words = SyncSys.parseTextToWords(content);
+                if(words.length > 0) {
+                    const newName = file.name.replace(/\.[^/.]+$/, ""); 
+                    StorageManager.save(Utils.uuid(), { id: Utils.uuid(), name: newName, words: words, isSystem: false });
+                    Utils.toast(`导入: ${newName}`);
+                    App.renderList();
+                }
+            }
         };
         reader.readAsText(file);
     }
@@ -405,25 +462,11 @@ const Pool = {
                 <div class="bubble-layer layer-meaning">${w.meaning}</div>
             `;
             
-            // 拖拽复制：始终复制 word
-            el.ondragstart = (e) => {
-                e.dataTransfer.setData('text/plain', w.word);
-            };
+            el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', w.word); };
+            el.oncontextmenu = (e) => { e.preventDefault(); Utils.copyToClipboard(w.word); };
 
-            // 右键复制：始终复制 word
-            el.oncontextmenu = (e) => {
-                e.preventDefault();
-                Utils.copyToClipboard(w.word);
-            };
-
-            // 长按复制 (Mobile)
             let pressTimer;
-            const startPress = () => {
-                pressTimer = setTimeout(() => {
-                    Utils.copyToClipboard(w.word);
-                    navigator.vibrate && navigator.vibrate(50); 
-                }, 600); 
-            };
+            const startPress = () => { pressTimer = setTimeout(() => { Utils.copyToClipboard(w.word); navigator.vibrate && navigator.vibrate(50); }, 600); };
             const cancelPress = () => clearTimeout(pressTimer);
             el.addEventListener('touchstart', startPress);
             el.addEventListener('touchend', cancelPress);
@@ -432,25 +475,19 @@ const Pool = {
             el.addEventListener('mouseup', cancelPress);
             el.addEventListener('mouseleave', cancelPress);
 
-            // 点击逻辑
             el.onclick = () => {
                 if (el.actionTimer) clearTimeout(el.actionTimer);
-
                 if (el.classList.contains('mastered')) {
                     el.classList.remove('mastered', 'vanish');
                     el.dataset.state = 'word';
                     StorageManager.updateWordStatus(Pool.currentBookId, w.id, 0); 
                     return;
                 }
-
                 if (el.dataset.state === 'word') {
                     el.dataset.state = 'meaning';
-                    el.actionTimer = setTimeout(() => {
-                        if (el.dataset.state === 'meaning') el.dataset.state = 'word';
-                    }, 5000);
+                    el.actionTimer = setTimeout(() => { if (el.dataset.state === 'meaning') el.dataset.state = 'word'; }, 5000);
                     return;
                 }
-
                 if (el.dataset.state === 'meaning') {
                     el.dataset.state = 'mastered';
                     el.classList.add('mastered');
@@ -476,21 +513,13 @@ const Training = {
     start: (bookId) => {
         const book = StorageManager.get(bookId);
         if(!book || !book.words.length) { Utils.toast('空单词本', 'error'); return; }
-        
-        Training.currentBookId = bookId; // 记录当前书ID用于回写状态
-
-        // 核心修改：只筛选未掌握的单词 (status != 2)
+        Training.currentBookId = bookId; 
         let words = book.words.filter(w => w.status !== 2);
-
-        if (words.length === 0) {
-            Utils.toast("本书单词已全部掌握！🎉");
-            return;
-        }
+        if (words.length === 0) { Utils.toast("本书单词已全部掌握！🎉"); return; }
 
         const sortType = document.getElementById('sort-pref').value;
         if (sortType === 'random') words.sort(() => 0.5 - Math.random());
         else if (sortType === 'az') words.sort((a,b) => a.word.localeCompare(b.word));
-        // unmastered 排序在这里意义不大，因为已经过滤了 mastered，但保持逻辑兼容
 
         Training.queue = words;
         Training.round = 0;
@@ -507,7 +536,6 @@ const Training = {
         const batch = Training.queue.splice(0, 8);
         if(!batch.length) { alert('🎉 本轮训练完成！'); App.endTraining(); return; }
         
-        // 此处 status: 0 仅为UI状态重置，不影响原始数据的 status
         Training.current = batch.map(w => ({...w, status: 0})); 
         Training.hasInteracted = false; Training.focusIndex = -1; Training.timeLeft = 60; Training.isPaused = false;
         Training.render(); Training.startTimer();
@@ -547,27 +575,17 @@ const Training = {
         if (!Training.hasInteracted && Training.timeLeft <= 0) { App.endTraining(); return; }
         
         const notMastered = Training.current.filter(w => w.status !== 2);
-        const mastered = Training.current.filter(w => w.status === 2);
-
-        // 1. 未掌握的进错题本
         if(notMastered.length) { 
             const mb = StorageManager.get('system_mistakes');
             notMastered.forEach(w => { 
                 if(!mb.words.find(x=>x.word===w.word)) mb.words.unshift({...w, id:Utils.uuid(), status:0}); 
             });
             StorageManager.save('system_mistakes', mb);
-            Training.queue.push(...notMastered); // 重新加入队列
+            Training.queue.push(...notMastered); 
             Utils.toast(`${notMastered.length} 个未掌握`); 
-        } else { 
-            Utils.toast('全对！'); 
-        }
+        } else { Utils.toast('全对！'); }
 
-        // 2. 关键修复：将本批次所有单词的最新状态写回原单词本
-        // 这样 mastered 的单词 (status=2) 会被持久化保存，从而在下次 Training.start 过滤时被剔除
-        Training.current.forEach(w => {
-            StorageManager.updateWordStatus(Training.currentBookId, w.id, w.status);
-        });
-
+        Training.current.forEach(w => { StorageManager.updateWordStatus(Training.currentBookId, w.id, w.status); });
         Training.next();
     },
     handleCardClick: (id, event) => {
@@ -598,7 +616,6 @@ const Training = {
     handleKeyDown: (e) => {
         if(document.getElementById('training-view').classList.contains('hidden')) return;
         if(Training.isPaused && e.code !== 'KeyP') return;
-        
         const isUp = e.code === 'KeyW' || e.code === 'ArrowUp';
         const isDown = e.code === 'KeyS' || e.code === 'ArrowDown';
         const isLeft = e.code === 'KeyA' || e.code === 'ArrowLeft';
@@ -611,7 +628,6 @@ const Training = {
         
         let cols = 2; 
         if (window.innerWidth >= 768) cols = Math.ceil(Training.current.length / 2);
-
         let nextIndex = Training.focusIndex;
         if (nextIndex === -1 && (isUp||isDown||isLeft||isRight)) { Training.setFocus(0, true); return; }
 
@@ -619,12 +635,7 @@ const Training = {
         else if (isLeft) { if (nextIndex % cols !== 0) nextIndex--; } 
         else if (isDown) { if (nextIndex + cols < Training.current.length) nextIndex += cols; } 
         else if (isUp) { if (nextIndex - cols >= 0) nextIndex -= cols; } 
-        else if (isFlip) { 
-            e.preventDefault(); 
-            if (nextIndex !== -1) Training.handleCardClick(Training.current[nextIndex].id);
-            Training.setFocus(nextIndex, true);
-        }
-        
+        else if (isFlip) { e.preventDefault(); if (nextIndex !== -1) Training.handleCardClick(Training.current[nextIndex].id); Training.setFocus(nextIndex, true); }
         if (nextIndex !== Training.focusIndex && nextIndex < Training.current.length) Training.setFocus(nextIndex, true); 
     },
     render: () => {
@@ -632,34 +643,17 @@ const Training = {
         c.style.setProperty('--cols', Math.ceil(Training.current.length / 2));
         Training.current.forEach(w => {
             const el = document.createElement('div'); el.className='word-card'; el.id='card-'+w.id;
-            
-            // 启用拖拽
             el.draggable = true;
-            el.ondragstart = (e) => {
-                e.dataTransfer.setData('text/plain', w.word);
-            };
-            el.oncontextmenu = (e) => {
-                e.preventDefault();
-                Utils.copyToClipboard(w.word);
-            };
-
+            el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', w.word); };
+            el.oncontextmenu = (e) => { e.preventDefault(); Utils.copyToClipboard(w.word); };
             if(w.status === 1) el.classList.add('is-reviewing');
             if(w.status === 2) el.classList.add('is-mastered');
             if(Training.globalReveal) el.classList.add('force-reveal');
             el.onclick = (e) => Training.handleCardClick(w.id, e);
             el.innerHTML = `
                 <div class="card-inner">
-                    <div class="card-front">
-                        <div class="check-mark">✅</div>
-                        <div class="section-top"><div class="word-text" title="${w.word}">${w.word}</div></div>
-                        <div class="section-bottom"></div>
-                    </div>
-                    <div class="card-back">
-                        <div class="section-top"><div class="word-text">${w.word}</div></div>
-                        <div class="section-bottom">
-                            <div class="word-meaning">${w.meaning}</div>
-                        </div>
-                    </div>
+                    <div class="card-front"><div class="check-mark">✅</div><div class="section-top"><div class="word-text" title="${w.word}">${w.word}</div></div><div class="section-bottom"></div></div>
+                    <div class="card-back"><div class="section-top"><div class="word-text">${w.word}</div></div><div class="section-bottom"><div class="word-meaning">${w.meaning}</div></div></div>
                 </div>`;
             c.appendChild(el);
         });
@@ -668,10 +662,16 @@ const Training = {
 
 const App = {
     isManageMode: false,
+    openMenuId: null, // 追踪当前打开的菜单ID
     init: () => { 
         if(!StorageManager.get('system_mistakes')) StorageManager.save('system_mistakes', {id:'system_mistakes', name:'📅 错题本', words:[], isSystem:true}); 
         App.renderList(); 
         App.setupGlobalDragDrop();
+        
+        // 点击空白关闭菜单
+        document.addEventListener('click', (e) => {
+            if(!e.target.closest('.book-actions')) App.closeAllMenus();
+        });
     },
     toggleManageMode: () => { 
         App.isManageMode = !App.isManageMode; 
@@ -679,9 +679,36 @@ const App = {
         document.getElementById('manage-btn').style.color = App.isManageMode ? 'var(--primary)' : 'var(--text-sub)'; 
         App.renderList(); 
     },
+    toggleMenu: (bookId, event) => {
+        event.stopPropagation();
+        const menu = document.getElementById(`menu-${bookId}`);
+        const wasHidden = menu.style.display !== 'flex';
+        App.closeAllMenus();
+        if(wasHidden) {
+            menu.classList.add('show');
+            menu.style.display = 'flex';
+        }
+    },
+    closeAllMenus: () => {
+        document.querySelectorAll('.menu-dropdown').forEach(el => {
+            el.classList.remove('show');
+            el.style.display = 'none';
+        });
+    },
     handleDeleteBook: (bookId, event) => { 
         event.stopPropagation(); 
         if(confirm('确定要删除吗？')) { StorageManager.remove(bookId); App.renderList(); } 
+    },
+    handleRenameBook: (bookId, event) => {
+        event.stopPropagation();
+        const book = StorageManager.get(bookId);
+        const newName = prompt("请输入新的单词本名称：", book.name);
+        if (newName && newName.trim() !== "") {
+            book.name = newName.trim();
+            StorageManager.save(bookId, book);
+            App.renderList();
+            Utils.toast("重命名成功");
+        }
     },
     handleExportBook: (bookId, event) => {
         event.stopPropagation();
@@ -694,19 +721,12 @@ const App = {
         if (!book) return;
         const uniqueMap = new Map();
         const originalCount = book.words.length;
-        
         book.words.forEach(w => {
-            if (!uniqueMap.has(w.word)) {
-                uniqueMap.set(w.word, w);
-            } else {
-                const exist = uniqueMap.get(w.word);
-                if (w.status > exist.status) uniqueMap.set(w.word, w);
-            }
+            if (!uniqueMap.has(w.word)) { uniqueMap.set(w.word, w); } 
+            else { const exist = uniqueMap.get(w.word); if (w.status > exist.status) uniqueMap.set(w.word, w); }
         });
-        
         const newWords = Array.from(uniqueMap.values());
         const removed = originalCount - newWords.length;
-        
         if (removed > 0) {
             if(confirm(`发现 ${removed} 个重复项，确定清理？`)) {
                 book.words = newWords;
@@ -714,9 +734,7 @@ const App = {
                 App.renderList();
                 Utils.toast(`清理了 ${removed} 个重复词`);
             }
-        } else {
-            Utils.toast("没有发现重复词");
-        }
+        } else { Utils.toast("没有发现重复词"); }
     },
     handlePoolMode: (bookId, event) => {
         event.stopPropagation();
@@ -742,9 +760,23 @@ const App = {
                 const srcId = e.dataTransfer.getData('sourceId');
                 if(srcId && srcId !== b.id) App.mergeBooks(srcId, b.id);
             };
-
             el.onclick = () => { if(!App.isManageMode) Training.start(b.id); };
             
+            // --- UI 修正区 ---
+            // 更多菜单 HTML 生成
+            const menuHtml = !b.isSystem ? `
+                <div class="menu-dropdown" id="menu-${b.id}">
+                    <button class="menu-item" onclick="App.handleRenameBook('${b.id}', event)">✏️ 重命名</button>
+                    <button class="menu-item" onclick="App.handleDedupeBook('${b.id}', event)">🧹 去重</button>
+                    <button class="menu-item" onclick="App.handleExportBook('${b.id}', event)">📥 导出</button>
+                    <button class="menu-item danger" onclick="App.handleDeleteBook('${b.id}', event)">🗑 删除</button>
+                </div>
+            ` : `
+                 <div class="menu-dropdown" id="menu-${b.id}">
+                    <button class="menu-item" onclick="App.handleExportBook('${b.id}', event)">📥 导出</button>
+                </div>
+            `;
+
             el.innerHTML = `
                 <div class="book-info">
                     <div class="book-title">${b.name}</div>
@@ -756,9 +788,8 @@ const App = {
                 </div>
                 <div class="book-actions" style="${App.isManageMode ? 'opacity:1' : ''}">
                     <button class="btn btn-ghost" title="气泡筛选" onclick="App.handlePoolMode('${b.id}', event)">🌊</button>
-                    <button class="btn btn-ghost" title="去重" onclick="App.handleDedupeBook('${b.id}', event)">🧹</button>
-                    <button class="btn btn-ghost" title="导出" onclick="App.handleExportBook('${b.id}', event)">📥</button>
-                    ${!b.isSystem ? `<button class="btn btn-ghost" style="color:var(--danger)" title="删除" onclick="App.handleDeleteBook('${b.id}', event)">🗑</button>` : ''}
+                    <button class="btn btn-ghost btn-icon" title="更多" onclick="App.toggleMenu('${b.id}', event)">⋮</button>
+                    ${menuHtml}
                 </div>
             `;
             list.appendChild(el);
@@ -785,29 +816,30 @@ const App = {
         document.body.ondragenter = (e) => { if(e.dataTransfer.types.includes('Files')) overlay.classList.add('active'); };
         overlay.ondragleave = (e) => { if(e.target === overlay) overlay.classList.remove('active'); };
         document.body.ondragover = (e) => e.preventDefault();
+        
+        // --- 批量拖拽修正核心区 ---
         document.body.ondrop = (e) => {
             e.preventDefault(); overlay.classList.remove('active');
-            if(e.dataTransfer.files[0]) SyncSys.handleImportFile(e.dataTransfer.files[0]);
+            if(e.dataTransfer.files.length > 0) {
+                // 循环处理所有拖入的文件
+                Array.from(e.dataTransfer.files).forEach(file => {
+                    SyncSys.handleImportFile(file);
+                });
+            }
         };
     },
     processImport: () => {
         const text = document.getElementById('import-text').value;
         const name = document.getElementById('import-name-input').value;
         if(!text) return;
-        const words = [];
-        text.split('\n').forEach(line => {
-            line = line.trim(); if(!line) return;
-            const match = line.match(/^([^\s]+)\s+(?:(\/[^\/]+\/)\s+)?(.+)$/);
-            if(match) words.push({word: match[1], meaning: match[3], status: 0, id: Utils.uuid()});
-            else { const parts = line.split(/\s+/); if(parts.length>1) words.push({word: parts[0], meaning: parts.slice(1).join(' '), status: 0, id: Utils.uuid()}); }
-        });
+        const words = SyncSys.parseTextToWords(text);
         StorageManager.save(Utils.uuid(), { id: Utils.uuid(), name: name || '导入 '+new Date().toLocaleDateString(), words: words, isSystem: false });
         App.closeModals(); App.renderList(); Utils.toast(`导入 ${words.length} 词`);
     },
     showImportModal: () => { document.getElementById('import-modal').classList.remove('hidden'); },
     handleFileInput: (input) => {
-        if(input.files && input.files[0]) {
-            SyncSys.handleImportFile(input.files[0]);
+        if(input.files && input.files.length > 0) {
+            Array.from(input.files).forEach(file => SyncSys.handleImportFile(file));
             input.value = ''; 
             App.closeModals();
         }
