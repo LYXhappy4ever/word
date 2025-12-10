@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>单词训练器 v30.0 (精简修复版)</title>
+    <title>单词训练器 v32.0 (备份识别修复版)</title>
     <style>
         :root {
             --primary: #4F46E5;
@@ -89,6 +89,15 @@
             display: none; z-index: 9999; pointer-events: none;
         }
         
+        /* 拖拽遮罩 */
+        #drop-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(79, 70, 229, 0.95); z-index: 10000;
+            display: none; justify-content: center; align-items: center; flex-direction: column;
+            color: white; backdrop-filter: blur(4px); pointer-events: none;
+        }
+        #drop-overlay.active { display: flex; pointer-events: auto; }
+
         /* 下拉菜单 */
         .menu-dropdown {
             position: absolute; top: 100%; right: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -140,6 +149,12 @@
     </style>
 </head>
 <body>
+
+    <div id="drop-overlay">
+        <div style="font-size: 4rem; margin-bottom: 10px;">📂</div>
+        <div style="font-size: 1.5rem; font-weight: 700;">释放文件</div>
+        <div style="opacity: 0.8; margin-top: 5px;">支持 backup.json (备份) 或 单本书</div>
+    </div>
 
     <div id="selection-marquee"></div>
 
@@ -389,7 +404,6 @@ const SelectionSys = {
         if (document.getElementById('bookshelf-view').classList.contains('hidden')) return;
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         
-        // 使用 e.code 修复大小写/输入法下的快捷键问题
         if (e.code === 'Delete' || e.code === 'Backspace') {
             if (SelectionSys.selectedIds.size > 0 && confirm(`删除选中的 ${SelectionSys.selectedIds.size} 项？`)) {
                 SelectionSys.selectedIds.forEach(id => {
@@ -524,7 +538,6 @@ const App = {
                 metaHtml = `<div class="item-meta">文件夹</div>`;
             }
             
-            // 移除了 "🔀 打乱顺序"
             const actions = !item.isSystem && item.type === 'book' ? `
                 <div class="item-actions-row">
                     <button class="btn btn-ghost btn-icon" title="气泡筛选" onclick="App.handlePoolMode('${item.id}', event)">🌊</button>
@@ -662,12 +675,38 @@ const SyncSys = {
         r.onload = (e) => {
             try {
                 const json = JSON.parse(e.target.result);
+                
+                // 1. 单本检查
                 if(json.words && Array.isArray(json.words)) {
-                    const id=Utils.uuid(); StorageManager.save(id, {...json, id, parentId: FolderSys.currentId, type:'book', isSystem:false});
+                    const id=Utils.uuid(); 
+                    StorageManager.save(id, {...json, id, parentId: FolderSys.currentId, type:'book', isSystem:false});
                     App.renderList(); return;
                 }
-                throw new Error('Not JSON');
+                
+                // 2. 备份检查 (修复点：提前判断)
+                const keys = Object.keys(json);
+                if (keys.some(k => k.startsWith('bk_'))) {
+                     if(confirm("检测到全量备份文件，是否恢复？\n注意：这将覆盖当前的同名数据。")) {
+                        for(const k in json) { if(k.startsWith('bk_')) localStorage.setItem(k, json[k]); }
+                        Utils.toast(`恢复成功`);
+                        setTimeout(() => location.reload(), 500);
+                    }
+                    return;
+                }
+
+                // 3. 旧版数组
+                if (Array.isArray(json)) {
+                    let count = 0;
+                    json.forEach(oldBook => {
+                        const newBook = { id: Utils.uuid(), name: oldBook.name || "导入本", isSystem: false, words: (oldBook.words || []).map(w => ({ word: w.word || w.spelling, meaning: w.meaning, status: 0, id: Utils.uuid() })) };
+                        StorageManager.save(newBook.id, newBook); count++;
+                    });
+                    Utils.toast(`已导入 ${count} 本`); App.renderList(); return;
+                }
+
+                throw new Error('Not recognized JSON');
             } catch(err) {
+                // 4. 文本处理
                 const words = SyncSys.parseText(e.target.result);
                 if(words.length) {
                     const id=Utils.uuid();
