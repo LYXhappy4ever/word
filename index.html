@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>单词训练器 v13.0 (全能去重版)</title>
+    <title>单词训练器 v15.0 (移动适配版)</title>
     <style>
         :root {
             --primary: #4F46E5;
@@ -61,7 +61,6 @@
         .badge-unmastered { color: var(--warning); font-weight: 600; background: #fffbeb; padding: 2px 6px; border-radius: 4px; }
         .badge-done { color: var(--success); font-weight: 600; background: #ecfdf5; padding: 2px 6px; border-radius: 4px; }
         
-        /* 操作按钮区 */
         .book-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
         .book-card:hover .book-actions { opacity: 1; }
         
@@ -181,7 +180,7 @@
                 <h1>🧠 记忆大师</h1>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button class="btn btn-ghost" onclick="SyncSys.exportData()">📤 备份进度</button>
+                <button class="btn btn-ghost" onclick="SyncSys.exportData()">📤 备份</button>
                 <button class="btn btn-outline" onclick="App.showImportModal()">+ 导入</button>
             </div>
         </header>
@@ -249,10 +248,20 @@
 
     <div id="import-modal" class="modal-overlay hidden">
         <div class="modal">
-            <h3 style="margin-top:0">导入新书</h3>
-            <input type="text" id="import-name-input" placeholder="单词本名称" style="width:100%; padding:10px; border:2px solid #E5E7EB; border-radius:10px; outline:none; margin-bottom: 10px;">
-            <textarea id="import-text" class="code-input" placeholder="粘贴单词文本...&#10;apple 苹果&#10;banana 香蕉"></textarea>
-            <div style="display:flex; gap:10px; justify-content: flex-end;">
+            <h3 style="margin-top:0">导入 / 新建</h3>
+            <div style="margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:15px;">
+                 <label style="display:block; color:#666; font-size:12px; margin-bottom:5px;">方式一：导入备份文件 (移动端推荐)</label>
+                 <button class="btn btn-outline" style="width:100%;" onclick="document.getElementById('file-input').click()">📂 选择 JSON 备份文件</button>
+                 <input type="file" id="file-input" class="hidden" onchange="App.handleFileInput(this)">
+            </div>
+            
+            <div>
+                <label style="display:block; color:#666; font-size:12px; margin-bottom:5px;">方式二：粘贴文本</label>
+                <input type="text" id="import-name-input" placeholder="单词本名称" style="width:100%; padding:10px; border:2px solid #E5E7EB; border-radius:10px; outline:none; margin-bottom: 10px;">
+                <textarea id="import-text" class="code-input" placeholder="apple 苹果&#10;banana 香蕉"></textarea>
+            </div>
+            
+            <div style="display:flex; gap:10px; justify-content: flex-end; margin-top:15px;">
                 <button class="btn btn-ghost" onclick="App.closeModals()">取消</button>
                 <button class="btn btn-primary" onclick="App.processImport()">确认导入</button>
             </div>
@@ -305,8 +314,17 @@ const SyncSys = {
             const k = localStorage.key(i); 
             if(k.startsWith('bk_')) data[k] = localStorage.getItem(k); 
         }
+        const now = new Date();
+        // 格式: YYYYMMDD_HHmmss
+        const timestamp = now.getFullYear() +
+            String(now.getMonth()+1).padStart(2, '0') +
+            String(now.getDate()).padStart(2, '0') + "_" +
+            String(now.getHours()).padStart(2, '0') +
+            String(now.getMinutes()).padStart(2, '0') +
+            String(now.getSeconds()).padStart(2, '0');
+            
         const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vocab_full_${new Date().toISOString().slice(0,10)}.json`; a.click();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vocab_backup_${timestamp}.json`; a.click();
         Utils.toast('全量进度已备份');
     },
     handleImportFile: (file) => {
@@ -365,7 +383,6 @@ const Pool = {
         const container = document.getElementById('pool-container');
         container.innerHTML = '';
         
-        // 核心功能：强制乱序
         words.sort(() => 0.5 - Math.random());
 
         words.forEach(w => {
@@ -373,7 +390,6 @@ const Pool = {
             el.className = 'bubble';
             el.dataset.state = 'word'; 
             
-            // Grid Stack 实现尺寸稳定
             el.innerHTML = `
                 <div class="bubble-layer layer-word">${w.word}</div>
                 <div class="bubble-layer layer-meaning">${w.meaning}</div>
@@ -382,7 +398,6 @@ const Pool = {
             el.onclick = () => {
                 if (el.actionTimer) clearTimeout(el.actionTimer);
 
-                // 1. 已掌握 -> 撤销
                 if (el.classList.contains('mastered')) {
                     el.classList.remove('mastered', 'vanish');
                     el.dataset.state = 'word';
@@ -390,18 +405,14 @@ const Pool = {
                     return;
                 }
 
-                // 2. 单词 -> 释义 + 自动回退
                 if (el.dataset.state === 'word') {
                     el.dataset.state = 'meaning';
                     el.actionTimer = setTimeout(() => {
-                        if (el.dataset.state === 'meaning') {
-                            el.dataset.state = 'word';
-                        }
+                        if (el.dataset.state === 'meaning') el.dataset.state = 'word';
                     }, 5000);
                     return;
                 }
 
-                // 3. 释义 -> 掌握 + 自动隐身
                 if (el.dataset.state === 'meaning') {
                     el.dataset.state = 'mastered';
                     el.classList.add('mastered');
@@ -505,13 +516,10 @@ const Training = {
         if(index === -1) return;
         const w = Training.current[index];
         const el = document.getElementById('card-' + id);
-        
         Training.setFocus(index, false); 
-
         if (w.status === 2) { w.status = 1; el.classList.remove('is-mastered'); el.classList.add('is-reviewing'); }
         else if (w.status === 1) { w.status = 2; el.classList.remove('is-reviewing'); el.classList.add('is-mastered'); }
         else { w.status = 1; el.classList.add('is-reviewing'); }
-        
         if(Training.current.every(x => x.status === 2)) setTimeout(Training.finishBatch, 500);
     },
     setFocus: (index, isKeyboard = false) => {
@@ -566,9 +574,7 @@ const Training = {
             if(w.status === 1) el.classList.add('is-reviewing');
             if(w.status === 2) el.classList.add('is-mastered');
             if(Training.globalReveal) el.classList.add('force-reveal');
-            
             el.onclick = (e) => Training.handleCardClick(w.id, e);
-            
             el.innerHTML = `
                 <div class="card-inner">
                     <div class="card-front">
@@ -610,7 +616,7 @@ const App = {
         const book = StorageManager.get(bookId);
         const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(book)], {type:'application/json'})); a.download = `${book.name}.json`; a.click();
     },
-    // 新增：手动去重
+    // 手动去重
     handleDedupeBook: (bookId, event) => {
         event.stopPropagation();
         const book = StorageManager.get(bookId);
@@ -622,7 +628,6 @@ const App = {
             if (!uniqueMap.has(w.word)) {
                 uniqueMap.set(w.word, w);
             } else {
-                // 保留状态更好的那个 (已掌握 > 未掌握)
                 const exist = uniqueMap.get(w.word);
                 if (w.status > exist.status) uniqueMap.set(w.word, w);
             }
@@ -729,6 +734,14 @@ const App = {
         App.closeModals(); App.renderList(); Utils.toast(`导入 ${words.length} 词`);
     },
     showImportModal: () => { document.getElementById('import-modal').classList.remove('hidden'); },
+    // 移动端文件选择器桥接
+    handleFileInput: (input) => {
+        if(input.files && input.files[0]) {
+            SyncSys.handleImportFile(input.files[0]);
+            input.value = ''; // 重置
+            App.closeModals();
+        }
+    },
     closeModals: () => document.querySelectorAll('.modal-overlay').forEach(e=>e.classList.add('hidden')),
     endTraining: () => { clearInterval(Training.timer); window.removeEventListener('keydown', Training.handleKeyDown); document.getElementById('training-view').classList.add('hidden'); document.getElementById('bookshelf-view').classList.remove('hidden'); App.renderList(); }
 };
