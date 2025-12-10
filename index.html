@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>单词训练器 v17.0 (全交互版)</title>
+    <title>单词训练器 v18.0 (优化闭环版)</title>
     <style>
         :root {
             --primary: #4F46E5;
@@ -221,7 +221,7 @@
         <div class="timer-bar"><div id="timer-progress" class="timer-progress"></div></div>
         
         <div style="background: #FEF3C7; color: #D97706; padding: 6px; text-align: center; font-size: 12px;">
-            空格/点击翻转 · 悬停/全局按钮看释义 · 回车结算
+            右键/拖拽复制单词 · 空格翻转 · 回车结算
         </div>
 
         <div id="card-container" class="training-container layout-grid"></div>
@@ -243,7 +243,7 @@
             <span style="width: 40px;"></span>
         </header>
         <div style="padding:10px; text-align:center; color:#666; font-size:12px; background:#fff; border-bottom:1px solid #eee;">
-            拖拽/长按/右键复制 · 5s自动回退 · 5s隐身
+            拖拽/长按/右键始终复制单词 · 5s自动回退
         </div>
         <div id="pool-container" class="pool-container"></div>
     </div>
@@ -405,25 +405,22 @@ const Pool = {
                 <div class="bubble-layer layer-meaning">${w.meaning}</div>
             `;
             
-            // 拖拽复制
+            // 拖拽复制：始终复制 word
             el.ondragstart = (e) => {
-                const text = el.dataset.state === 'meaning' ? w.meaning : w.word;
-                e.dataTransfer.setData('text/plain', text);
+                e.dataTransfer.setData('text/plain', w.word);
             };
 
-            // 右键复制
+            // 右键复制：始终复制 word
             el.oncontextmenu = (e) => {
                 e.preventDefault();
-                const text = el.dataset.state === 'meaning' ? w.meaning : w.word;
-                Utils.copyToClipboard(text);
+                Utils.copyToClipboard(w.word);
             };
 
             // 长按复制 (Mobile)
             let pressTimer;
             const startPress = () => {
                 pressTimer = setTimeout(() => {
-                    const text = el.dataset.state === 'meaning' ? w.meaning : w.word;
-                    Utils.copyToClipboard(text);
+                    Utils.copyToClipboard(w.word);
                     navigator.vibrate && navigator.vibrate(50); 
                 }, 600); 
             };
@@ -474,17 +471,26 @@ const Pool = {
 const Training = {
     queue: [], current: [], timer: null, round: 0, 
     hasInteracted: false, isPaused: false, timeLeft: 60, focusIndex: -1,
-    globalReveal: false,
+    globalReveal: false, currentBookId: null,
     
     start: (bookId) => {
         const book = StorageManager.get(bookId);
         if(!book || !book.words.length) { Utils.toast('空单词本', 'error'); return; }
         
+        Training.currentBookId = bookId; // 记录当前书ID用于回写状态
+
+        // 核心修改：只筛选未掌握的单词 (status != 2)
+        let words = book.words.filter(w => w.status !== 2);
+
+        if (words.length === 0) {
+            Utils.toast("本书单词已全部掌握！🎉");
+            return;
+        }
+
         const sortType = document.getElementById('sort-pref').value;
-        let words = [...book.words];
         if (sortType === 'random') words.sort(() => 0.5 - Math.random());
         else if (sortType === 'az') words.sort((a,b) => a.word.localeCompare(b.word));
-        else if (sortType === 'unmastered') words.sort((a,b) => (a.status===2 ? 1 : 0) - (b.status===2 ? 1 : 0));
+        // unmastered 排序在这里意义不大，因为已经过滤了 mastered，但保持逻辑兼容
 
         Training.queue = words;
         Training.round = 0;
@@ -499,8 +505,9 @@ const Training = {
         Training.round++;
         document.getElementById('round-count').innerText = Training.round;
         const batch = Training.queue.splice(0, 8);
-        if(!batch.length) { alert('🎉 本轮完成！'); App.endTraining(); return; }
+        if(!batch.length) { alert('🎉 本轮训练完成！'); App.endTraining(); return; }
         
+        // 此处 status: 0 仅为UI状态重置，不影响原始数据的 status
         Training.current = batch.map(w => ({...w, status: 0})); 
         Training.hasInteracted = false; Training.focusIndex = -1; Training.timeLeft = 60; Training.isPaused = false;
         Training.render(); Training.startTimer();
@@ -538,16 +545,29 @@ const Training = {
     },
     finishBatch: () => {
         if (!Training.hasInteracted && Training.timeLeft <= 0) { App.endTraining(); return; }
+        
         const notMastered = Training.current.filter(w => w.status !== 2);
+        const mastered = Training.current.filter(w => w.status === 2);
+
+        // 1. 未掌握的进错题本
         if(notMastered.length) { 
             const mb = StorageManager.get('system_mistakes');
             notMastered.forEach(w => { 
                 if(!mb.words.find(x=>x.word===w.word)) mb.words.unshift({...w, id:Utils.uuid(), status:0}); 
             });
             StorageManager.save('system_mistakes', mb);
-            Training.queue.push(...notMastered); 
+            Training.queue.push(...notMastered); // 重新加入队列
             Utils.toast(`${notMastered.length} 个未掌握`); 
-        } else { Utils.toast('全对！'); }
+        } else { 
+            Utils.toast('全对！'); 
+        }
+
+        // 2. 关键修复：将本批次所有单词的最新状态写回原单词本
+        // 这样 mastered 的单词 (status=2) 会被持久化保存，从而在下次 Training.start 过滤时被剔除
+        Training.current.forEach(w => {
+            StorageManager.updateWordStatus(Training.currentBookId, w.id, w.status);
+        });
+
         Training.next();
     },
     handleCardClick: (id, event) => {
@@ -612,6 +632,17 @@ const Training = {
         c.style.setProperty('--cols', Math.ceil(Training.current.length / 2));
         Training.current.forEach(w => {
             const el = document.createElement('div'); el.className='word-card'; el.id='card-'+w.id;
+            
+            // 启用拖拽
+            el.draggable = true;
+            el.ondragstart = (e) => {
+                e.dataTransfer.setData('text/plain', w.word);
+            };
+            el.oncontextmenu = (e) => {
+                e.preventDefault();
+                Utils.copyToClipboard(w.word);
+            };
+
             if(w.status === 1) el.classList.add('is-reviewing');
             if(w.status === 2) el.classList.add('is-mastered');
             if(Training.globalReveal) el.classList.add('force-reveal');
