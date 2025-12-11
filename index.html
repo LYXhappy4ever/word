@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>单词训练器 v32.0 (备份识别修复版)</title>
+    <title>单词训练器 v51.10 (触控焦点修复版)</title>
     <style>
         :root {
             --primary: #4F46E5;
@@ -15,19 +15,29 @@
             --danger: #EF4444;
             --success: #10B981;
             --warning: #F59E0B;
-            --focus-ring: #818cf8;
-            --select-border: #3b82f6;
-            --select-bg: rgba(59, 130, 246, 0.2);
             --radius: 12px;
             --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         html { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; padding: 0; font-family: var(--font-stack); background: var(--bg-body); color: var(--text-main); height: 100vh; overflow: hidden; display: flex; flex-direction: column; user-select: none; }
+        /* 强制全局稳定，并隐藏水平滚动条 */
+        body { 
+            margin: 0; padding: 0; 
+            font-family: var(--font-stack); 
+            background: var(--bg-body); 
+            color: var(--text-main); 
+            height: 100vh; 
+            overflow: hidden; 
+            display: flex; 
+            flex-direction: column; 
+            user-select: none; 
+            perspective: 1000px; 
+            overflow-x: hidden; 
+        }
         * { box-sizing: border-box; }
 
-        /* --- 通用组件 --- */
-        .btn { border: none; padding: 8px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; outline: none; white-space: nowrap; }
+        /* --- 基础组件 --- */
+        .btn { border: none; padding: 8px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; outline: none; white-space: nowrap; flex-shrink: 0; }
         .btn:active { transform: scale(0.96); }
         .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); }
         .btn-ghost { background: transparent; color: var(--text-sub); }
@@ -35,27 +45,34 @@
         .btn-outline { border: 1px solid #E5E7EB; background: white; color: var(--text-main); }
         .btn-icon { padding: 8px; border-radius: 50%; width: 32px; height: 32px; }
         
-        select { padding: 8px 30px 8px 12px; border-radius: 8px; border: 1px solid #d1d5db; background: white; font-size: 13px; cursor: pointer; appearance: none; }
+        select { padding: 8px 30px 8px 12px; border-radius: 8px; border: 1px solid #d1d5db; background: white; font-size: 13px; cursor: pointer; }
         .hidden { display: none !important; }
         .view { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 
-        /* --- 面包屑导航 --- */
-        .breadcrumb-bar {
-            padding: 10px 16px; background: white; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 5px; font-size: 14px; color: var(--text-sub); overflow-x: auto; flex-shrink: 0;
+        /* --- 头部栏 --- */
+        header { 
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); 
+            padding: 8px 10px; 
+            display: flex; justify-content: space-between; align-items: center; 
+            border-bottom: 1px solid #e5e7eb; 
+            z-index: 50; flex-shrink: 0; 
+            height: 50px; 
+            gap: 10px; 
         }
-        .crumb { cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: background 0.2s; }
+        
+        header > .btn, 
+        header > .header-actions { flex-shrink: 0 !important; }
+
+        .header-center { flex: 1; min-width: 0; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+        .header-title-text { font-size: 15px; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; display: block; }
+
+        /* --- 书架 --- */
+        .breadcrumb-bar { padding: 10px 16px; background: white; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 5px; font-size: 14px; color: var(--text-sub); overflow-x: auto; flex-shrink: 0; }
+        .crumb { cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: background 0.2s; white-space: nowrap; }
         .crumb:hover { background: #f3f4f6; color: var(--primary); }
         .crumb.active { font-weight: bold; color: var(--text-main); cursor: default; }
-        .crumb-separator { color: #d1d5db; }
 
-        /* --- 书架视图 --- */
-        header { background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; z-index: 50; flex-shrink: 0; }
-        
-        #bookshelf-view { overflow: hidden; display: flex; flex-direction: column; }
         .file-area { flex: 1; overflow-y: auto; padding: 16px; position: relative; } 
-        
-        .toolbar { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-        
         .book-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding-bottom: 60px; }
         
         .item-card {
@@ -65,124 +82,174 @@
             height: 150px; position: relative; transition: all 0.2s; cursor: pointer;
             justify-content: space-between; z-index: 1;
         }
-        .item-card:hover { transform: translateY(-2px); box-shadow: 0 8px 12px -3px rgba(0,0,0,0.1); border-color: #e5e7eb; z-index: 10; }
-        .item-card.selected { background-color: var(--primary-bg); border-color: var(--select-border); box-shadow: 0 0 0 2px var(--select-bg); }
-        .item-card.drag-target { border: 2px dashed var(--success); transform: scale(1.05); z-index: 20; background: #ecfdf5; }
-
-        .item-content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; pointer-events: none; }
+        .item-card:hover { transform: translateY(-2px); box-shadow: 0 8px 12px -3px rgba(0,0,0,0.1); border-color: #e5e7eb; z-index: 5; }
+        .item-card.selected { background-color: var(--primary-bg); border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
         .item-icon { font-size: 36px; margin-bottom: 5px; }
-        .item-name { font-size: 14px; font-weight: 600; color: #374151; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 5px; }
-        
-        .item-meta { 
-            font-size: 11px; color: #9ca3af; margin-top: 4px; pointer-events: auto;
-            padding: 2px 6px; border-radius: 4px; transition: background 0.2s;
+        .item-name { 
+            font-size: 14px; font-weight: 600; color: #374151; width: 100%; 
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; white-space: normal; line-height: 1.35;
+            min-height: 38px; display: flex; align-items: center; justify-content: center;
         }
-        .item-meta:hover { background: #f3f4f6; color: var(--primary); }
-
-        .item-card[data-type="folder"] .item-icon { color: #F59E0B; }
-        .item-actions-row { display: flex; gap: 2px; width: 100%; justify-content: center; opacity: 0; transition: opacity 0.2s; margin-top: 5px; z-index: 5;}
+        .item-meta { font-size: 11px; color: #9ca3af; margin-top: 4px; padding: 2px 6px; border-radius: 4px; }
+        .item-actions-row { display: flex; gap: 2px; width: 100%; justify-content: center; opacity: 0; transition: opacity 0.2s; margin-top: 5px; }
         .item-card:hover .item-actions-row { opacity: 1; }
 
-        /* 框选选框 */
-        #selection-marquee {
-            position: fixed; border: 1px solid var(--select-border); background-color: var(--select-bg);
-            display: none; z-index: 9999; pointer-events: none;
+        /* --- 训练视图 --- */
+        .full-screen { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; 
+            background: var(--bg-body); display: flex; flex-direction: column; 
+            transform: translateZ(0); 
+            will-change: transform;
         }
-        
-        /* 拖拽遮罩 */
-        #drop-overlay {
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(79, 70, 229, 0.95); z-index: 10000;
-            display: none; justify-content: center; align-items: center; flex-direction: column;
-            color: white; backdrop-filter: blur(4px); pointer-events: none;
-        }
-        #drop-overlay.active { display: flex; pointer-events: auto; }
-
-        /* 下拉菜单 */
-        .menu-dropdown {
-            position: absolute; top: 100%; right: 0; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            display: none; flex-direction: column; z-index: 200; min-width: 100px; overflow: hidden;
-        }
-        .menu-dropdown.show { display: flex; }
-        .menu-item { padding: 8px 12px; text-align: left; background: white; border: none; font-size: 12px; cursor: pointer; width: 100%; }
-        .menu-item:hover { background: #f3f4f6; }
-        .menu-item.danger { color: red; }
-
-        /* 训练视图 */
-        .full-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background: var(--bg-body); display: flex; flex-direction: column; }
-        .timer-bar { height: 4px; background: #e5e7eb; width: 100%; }
+        .timer-bar { height: 4px; background: #e5e7eb; width: 100%; flex-shrink: 0; }
         .timer-progress { height: 100%; background: var(--primary); width: 100%; transition: width 1s linear; }
-        .training-container { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; }
-        .layout-grid { display: grid; gap: 10px; width: 100%; height: 100%; transition: all 0.3s ease; }
-        @media (min-width: 768px) { .layout-grid { grid-template-columns: repeat(var(--cols, 4), 1fr); grid-template-rows: repeat(2, 1fr); height: 100%; max-height: 85vh; } .word-card { height: 100% !important; } }
+        
+        .training-container { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 12px; 
+            display: flex; 
+            flex-direction: column; 
+        }
+        .layout-grid { 
+            display: grid; 
+            gap: 10px; 
+            width: 100%; 
+            height: 100%; 
+            transition: all 0.3s ease; 
+        }
+        @media (min-width: 768px) { .layout-grid { grid-template-columns: repeat(var(--cols, 4), 1fr); grid-template-rows: repeat(2, 1fr); max-height: 85vh; } }
         @media (max-width: 768px) { .layout-grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 160px; height: auto; padding-bottom: 80px; } }
         
-        .word-card { background: transparent; perspective: 1000px; height: 160px; cursor: pointer; position: relative; touch-action: manipulation; }
-        .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); transform-style: preserve-3d; border-radius: var(--radius); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-        .word-card.is-reviewing .card-inner { transform: rotateY(180deg); }
-        .word-card.is-mastered .card-inner { transform: rotateY(0deg); } 
-        .card-front, .card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: var(--radius); border: 2px solid #e5e7eb; background: white; overflow: hidden; display: flex; flex-direction: column; }
-        .card-front { z-index: 2; background: white; color: var(--text-main); }
-        .card-back { z-index: 1; transform: rotateY(180deg); background: #FFF1F2; border-color: #FECACA; }
-        .word-card.is-review-item .card-front { border-style: dashed; border-color: #818cf8; background: #f5f3ff; }
-        .word-card.is-mastered .card-front { border: 3px solid var(--success); background-color: #ecfdf5; border-style: solid; }
-        .check-mark { position: absolute; top: 8px; right: 8px; color: var(--success); font-size: 20px; opacity: 0; transform: scale(0.5); transition: all 0.2s; }
-        .word-card.is-mastered .check-mark { opacity: 1; transform: scale(1); }
-        .section-top { height: 45%; width: 100%; display: flex; align-items: center; justify-content: center; padding: 0 10px; }
-        .word-text { font-size: 22px; font-weight: 800; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; }
-        .section-bottom { height: 55%; width: 100%; padding: 10px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.01); opacity: 0; transition: opacity 0.2s ease; }
-        .word-card:hover .section-bottom { opacity: 1; }
+        .word-card { 
+            background: transparent; 
+            perspective: 1000px; 
+            cursor: pointer; 
+            position: relative; 
+            touch-action: manipulation; 
+            height: 100%; 
+            transform: translateZ(0); 
+            will-change: transform;
+        }
+        .card-inner { 
+            position: relative; 
+            width: 100%; 
+            height: 100%; 
+            text-align: center; 
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            transform-style: preserve-3d; 
+            border-radius: var(--radius); 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); 
+            backface-visibility: hidden; 
+        }
+        .word-card.state-white .card-inner { transform: rotateY(0deg); }
+        .word-card.state-red .card-inner    { transform: rotateY(180deg); }
+        .word-card.state-green .card-inner { transform: rotateY(0deg); }
+        .card-front, .card-back { 
+            position: absolute; 
+            width: 100%; 
+            height: 100%; 
+            -webkit-backface-visibility: hidden; 
+            backface-visibility: hidden; 
+            border-radius: var(--radius); 
+            border: 2px solid #e5e7eb; 
+            display: flex; flex-direction: column; 
+            overflow: hidden; 
+            transform: translateZ(0.1px); 
+        }
 
-        /* 模态框 & Toast */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; backdrop-filter: blur(2px); opacity: 0; pointer-events: none; }
-        .modal-overlay:not(.hidden) { opacity: 1; pointer-events: auto; }
+        /* --- 重点修复: 防止点击底部卡片时浏览器地址栏/工具栏的抖动 --- */
+        /* 移除 word-card 的 transform: translateZ(0.1px) 属性，仅保留 card-front/card-back 上的属性 */
+        /* 并在JS中尝试阻止默认行为 */
+        
+        .card-front { z-index: 2; background: white; color: var(--text-main); transform: rotateY(0deg); }
+        .card-back { z-index: 1; background: #FFF1F2; border-color: #FECACA; transform: rotateY(180deg); }
+        .word-card.state-green .card-front { border: 3px solid var(--success); background-color: #ecfdf5; }
+        .check-mark { position: absolute; top: 8px; right: 8px; color: var(--success); font-size: 20px; opacity: 0; transform: scale(0.5); transition: all 0.2s; z-index: 5; }
+        .word-card.state-green .check-mark { opacity: 1; transform: scale(1); }
+        .section-top { flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px; width: 100%; }
+        .section-bottom { flex: 1; display: flex; align-items: center; justify-content: center; padding: 10px; background: rgba(0,0,0,0.02); width: 100%; }
+        .word-text { font-size: 20px; font-weight: 800; word-break: break-all; padding: 0 25px; }
+        .word-meaning { font-size: 15px; color: var(--text-sub); transition: opacity 0.3s ease; opacity: 0; }
+        .word-card.state-white .card-front .word-meaning { display: none; }
+        .word-card.state-red .card-back .word-meaning { opacity: 0; }
+        @media (hover: hover) { .word-card.state-red:hover .card-back .word-meaning { opacity: 1; } }
+        .training-container.show-all-meanings .word-card.state-red .card-back .word-meaning { opacity: 1 !important; }
+        .word-card.state-green .card-front .word-meaning { opacity: 1; display: block; }
+
+        /* --- 气泡池视图 (3D翻转 + 0.35s 优化曲线) --- */
+        #pool-view { background: #f0f4f8; }
+        .pool-container { padding: 20px; flex: 1; display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; justify-content: center; overflow-y: auto; perspective: 800px; }
+        
+        .bubble { 
+            display: inline-grid; 
+            grid-template-areas: "stack"; 
+            cursor: pointer; 
+            user-select: none; 
+            transform-style: preserve-3d; 
+            transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            max-width: 90vw; 
+            transform: translateZ(0);
+        }
+        
+        /* 状态1(Flipped/Back) */
+        .bubble.flipped { transform: rotateY(180deg); }
+        
+        .bubble.vanish { transform: scale(0); opacity: 0; transition: all 0.5s; }
+
+        .bubble-face { 
+            grid-area: stack; 
+            -webkit-backface-visibility: hidden; backface-visibility: hidden; 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            background: white; 
+            border: 1px solid #e2e7eb; 
+            display: flex; align-items: center; justify-content: center; 
+            width: 100%; height: 100%; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+            transform: translateZ(0.1px); 
+        }
+
+        .face-front { transform: rotateY(0deg); color: var(--text-main); font-weight: 500; z-index: 2; }
+        .face-back { transform: rotateY(180deg); background: #EEF2FF; color: var(--primary); border-color: #C7D2FE; font-size: 0.9em; z-index: 1; }
+
+        /* 绿色掌握状态 - 覆盖在Front */
+        .bubble.mastered .face-front { background: #D1FAE5; color: #065F46; border-color: #6EE7B7; }
+
+        /* 通用 */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; backdrop-filter: blur(2px); }
         .modal { background: white; width: 90%; max-width: 450px; border-radius: 20px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
         #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(17, 24, 39, 0.95); color: white; padding: 10px 24px; border-radius: 30px; font-size: 14px; z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
-        
-        #pool-view { background: #f0f4f8; }
-        .pool-container { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start; justify-content: center; }
-        .bubble { 
-            background: white; border: 1px solid #e2e8f0; border-radius: 20px; padding: 8px 16px; cursor: pointer; user-select: none; 
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin: 5px;
-        }
-        .bubble:active { transform: scale(1.05); }
+        .pause-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); backdrop-filter: blur(5px); z-index: 500; display: flex; justify-content: center; align-items: center; flex-direction: column; }
     </style>
 </head>
 <body>
 
-    <div id="drop-overlay">
-        <div style="font-size: 4rem; margin-bottom: 10px;">📂</div>
-        <div style="font-size: 1.5rem; font-weight: 700;">释放文件</div>
-        <div style="opacity: 0.8; margin-top: 5px;">支持 backup.json (备份) 或 单本书</div>
+    <div id="drop-overlay" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(79,70,229,0.9);z-index:1000;color:white;display:flex;justify-content:center;align-items:center;flex-direction:column;">
+        <div style="font-size:4rem;">📂</div>
+        <h3>释放导入</h3>
     </div>
-
-    <div id="selection-marquee"></div>
+    <div id="selection-marquee" style="position:fixed;border:1px solid #3b82f6;background:rgba(59,130,246,0.2);display:none;z-index:9999;pointer-events:none;"></div>
 
     <div id="bookshelf-view" class="view">
         <header>
-            <h1>🧠 记忆大师</h1>
-            <div style="display: flex; gap: 8px;">
-                <button class="btn btn-outline" onclick="FolderSys.createFolder()">📂 新建文件夹</button>
+            <div style="font-weight:800; font-size:18px;">🧠 单词训练器</div>
+            <div class="header-actions" style="display: flex; gap: 8px;">
+                <button class="btn btn-outline" onclick="FolderSys.createFolder()">📂 新建</button>
                 <button class="btn btn-ghost" onclick="SyncSys.exportData()">📤 备份</button>
                 <button class="btn btn-primary" onclick="App.showImportModal()">+ 导入</button>
             </div>
         </header>
-        
-        <div class="breadcrumb-bar" id="breadcrumb">
-            <span class="crumb active">根目录</span>
-        </div>
-
+        <div class="breadcrumb-bar" id="breadcrumb"></div>
         <div id="file-area" class="file-area" onmousedown="SelectionSys.start(event)">
             <div style="max-width: 1200px; margin: 0 auto;">
-                <div class="toolbar">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
                     <select id="sort-pref" onchange="App.savePref()">
-                        <option value="random" selected>🎲 排序：随机乱序 (默认)</option>
-                        <option value="unmastered">⚡ 排序：未掌握优先</option>
-                        <option value="az">🔤 排序：A-Z</option>
+                        <option value="random">🎲 随机乱序</option>
+                        <option value="unmastered">⚡ 未掌握优先</option>
                     </select>
-                    <span style="color:#999; font-size:12px; margin-left:auto; align-self:center;">提示：按住拖拽框选 · 单击进入 · Ctrl+C/V</span>
                 </div>
-                
                 <div id="book-list" class="book-list"></div>
             </div>
         </div>
@@ -191,101 +258,80 @@
     <div id="training-view" class="full-screen hidden">
         <header>
             <button class="btn btn-ghost" onclick="App.endTraining()">✕ 退出</button>
-            <div style="text-align: center;">
-                <h1 id="train-book-title" style="font-size: 15px; margin:0;">训练中</h1>
-                <span style="font-size: 11px; color: var(--text-sub)">轮次 <span id="round-count">1</span> <span id="review-badge" class="hidden" style="color:#4F46E5; font-weight:bold; margin-left:5px;">(复习轮)</span></span>
+            <div class="header-center">
+                <div id="train-book-title" class="header-title-text">训练中</div>
+                <span style="font-size: 11px; color: var(--text-sub); white-space:nowrap;">
+                    轮次 <span id="round-count">1</span> <span id="review-badge" class="hidden" style="color:#F59E0B;">(复习)</span>
+                </span>
             </div>
-            <div style="display:flex; gap:5px;">
-                <button class="btn btn-ghost" onclick="Training.toggleAllMeanings()">👁️</button>
+            <div class="header-actions" style="display:flex; gap:5px;">
+                <button class="btn btn-ghost" id="eye-btn" onclick="Training.toggleAllMeanings()">👁️</button>
                 <button class="btn btn-ghost" onclick="Training.togglePause()">⏸</button>
             </div>
         </header>
         <div class="timer-bar"><div id="timer-progress" class="timer-progress"></div></div>
         <div id="card-container" class="training-container layout-grid"></div>
-        <div style="padding: 12px; background: white; text-align: center;">
+        <div style="padding: 12px; background: white; text-align: center; flex-shrink:0;">
              <button class="btn btn-outline" style="width: 200px;" onclick="Training.finishBatch()">📥 结算 (Enter)</button>
         </div>
         <div id="pause-overlay" class="pause-overlay hidden">
-            <h1>⏸</h1><button class="btn btn-primary" onclick="Training.togglePause()">继续</button>
+            <h2>已暂停</h2>
+            <button class="btn btn-primary" onclick="Training.togglePause()">继续</button>
         </div>
     </div>
     
     <div id="pool-view" class="full-screen hidden">
-        <header><button class="btn btn-ghost" onclick="Pool.close()">⬅ 返回</button> <h1>速筛词池</h1> <span></span></header>
+        <header>
+            <button class="btn btn-ghost" onclick="Pool.close()">⬅ 返回</button> 
+            <div class="header-center">
+                <div class="header-title-text">速筛词池</div>
+            </div>
+            <div class="header-actions" style="width:32px;"></div> </header>
         <div id="pool-container" class="pool-container"></div>
     </div>
 
     <div id="import-modal" class="modal-overlay hidden">
         <div class="modal">
             <h3>导入 / 新建</h3>
-            <div style="margin-bottom:15px; padding-bottom:15px; border-bottom:1px solid #eee;">
-                 <button class="btn btn-outline" style="width:100%;" onclick="document.getElementById('file-input').click()">📂 选择文件 (txt/json)</button>
-                 <input type="file" id="file-input" class="hidden" multiple onchange="App.handleFileInput(this)">
-            </div>
-            <textarea id="import-text" class="code-input" placeholder="直接粘贴文本..."></textarea>
-            <input type="text" id="import-name-input" placeholder="名称" style="width:100%; padding:8px; border:1px solid #eee; border-radius:8px; margin-top:5px;">
-            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px;">
+            <textarea id="import-text" style="width:100%; height:150px; border:1px solid #ddd; border-radius:8px; padding:10px; margin:10px 0;" placeholder="单词 释义 (一行一个)"></textarea>
+            <input type="text" id="import-name-input" placeholder="名称" style="width:100%; padding:8px; margin-bottom:10px; border:1px solid #ddd; border-radius:8px;">
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
                 <button class="btn btn-ghost" onclick="document.getElementById('import-modal').classList.add('hidden')">取消</button>
                 <button class="btn btn-primary" onclick="App.processImport()">确认</button>
             </div>
         </div>
     </div>
-
     <div id="toast">✅ 操作成功</div>
 
 <script>
 const Utils = {
     uuid: () => Date.now().toString(36) + Math.random().toString(36).substr(2),
-    toast: (msg, type='success') => {
+    toast: (msg) => {
         const t = document.getElementById('toast');
-        t.innerText = (type==='error'?'❌ ':'✅ ') + msg;
-        t.style.opacity = 1; t.style.bottom = '40px';
+        t.innerText = msg; t.style.opacity = 1; t.style.bottom = '40px';
         setTimeout(() => { t.style.opacity = 0; t.style.bottom = '30px'; }, 2000);
     },
-    copyToClipboard: (text) => {
-        navigator.clipboard.writeText(text).then(() => {
-            Utils.toast('已复制: ' + text);
-        }).catch(err => {
-            console.error('Copy failed', err);
-            Utils.toast('复制失败', 'error');
-        });
-    },
-    shuffle: (array) => {
-        let currentIndex = array.length, randomIndex;
-        while (currentIndex != 0) {
-            randomIndex = Math.floor(Math.random() * currentIndex);
-            currentIndex--;
-            [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
-        }
-        return array;
-    }
+    shuffle: (array) => array.sort(() => Math.random() - 0.5)
 };
 
 const StorageManager = {
-    getKey: (id) => id.startsWith('bk_') ? id : 'bk_' + id,
-    save: (id, val) => { try { localStorage.setItem(StorageManager.getKey(id), JSON.stringify(val)); } catch(e) { Utils.toast('存储已满', 'error'); } },
-    get: (id) => { try { return JSON.parse(localStorage.getItem(StorageManager.getKey(id))); } catch(e) { return null; } },
-    remove: (id) => localStorage.removeItem(StorageManager.getKey(id)),
-    getAllItems: () => {
+    save: (id, val) => localStorage.setItem('bk_' + id, JSON.stringify(val)),
+    get: (id) => { try { return JSON.parse(localStorage.getItem('bk_' + id)); } catch(e){ return null; } },
+    remove: (id) => localStorage.removeItem('bk_' + id),
+    getAll: () => {
         const items = [];
         for(let i=0; i<localStorage.length; i++) {
             const k = localStorage.key(i);
-            if(k.startsWith('bk_')) {
-                try {
-                    const item = JSON.parse(localStorage.getItem(k));
-                    if (!item.parentId) { item.parentId = 'root'; localStorage.setItem(k, JSON.stringify(item)); }
-                    if (!item.type) { item.type = 'book'; localStorage.setItem(k, JSON.stringify(item)); }
-                    items.push(item);
-                } catch(e) {}
-            }
+            if(k.startsWith('bk_')) items.push(JSON.parse(localStorage.getItem(k)));
         }
         return items;
     },
-    updateStatus: (bookId, wordId, status) => {
-        const book = StorageManager.get(bookId);
-        if(book) { 
-            const w = book.words.find(x => x.id === wordId);
-            if(w) { w.status = status; StorageManager.save(bookId, book); }
+    initMistakeBook: () => {
+        const all = StorageManager.getAll();
+        if (!all.find(x => x.id === 'system_mistakes')) {
+            StorageManager.save('system_mistakes', {
+                id: 'system_mistakes', name: '❌ 错题本', words: [], isSystem: true, type: 'book', parentId: 'root'
+            });
         }
     }
 };
@@ -293,39 +339,31 @@ const StorageManager = {
 const FolderSys = {
     currentId: 'root',
     path: [{id: 'root', name: '根目录'}],
+    renderBreadcrumb: () => {
+        const bc = document.getElementById('breadcrumb');
+        bc.innerHTML = FolderSys.path.map((p, i) => 
+            `<span class="crumb ${i===FolderSys.path.length-1?'active':''}" onclick="FolderSys.nav(${i})">${p.name}</span>`
+        ).join('<span style="color:#ccc">></span>');
+    },
+    nav: (idx) => {
+        FolderSys.path = FolderSys.path.slice(0, idx+1);
+        FolderSys.currentId = FolderSys.path[idx].id;
+        FolderSys.renderBreadcrumb();
+        App.renderList();
+    },
     createFolder: () => {
-        const name = prompt("请输入文件夹名称：", "新建文件夹");
+        const name = prompt("文件夹名称");
         if(name) {
             const id = Utils.uuid();
-            StorageManager.save(id, { id, name, type: 'folder', parentId: FolderSys.currentId });
+            StorageManager.save(id, {id, name, type:'folder', parentId: FolderSys.currentId});
             App.renderList();
         }
     },
     enter: (id, name) => {
-        FolderSys.currentId = id;
         FolderSys.path.push({id, name});
+        FolderSys.currentId = id;
         FolderSys.renderBreadcrumb();
         App.renderList();
-        SelectionSys.clear();
-    },
-    navTo: (index) => {
-        FolderSys.path = FolderSys.path.slice(0, index + 1);
-        FolderSys.currentId = FolderSys.path[FolderSys.path.length-1].id;
-        FolderSys.renderBreadcrumb();
-        App.renderList();
-        SelectionSys.clear();
-    },
-    renderBreadcrumb: () => {
-        const bc = document.getElementById('breadcrumb');
-        bc.innerHTML = '';
-        FolderSys.path.forEach((p, idx) => {
-            if(idx > 0) { const sp = document.createElement('span'); sp.className='crumb-separator'; sp.innerText='>'; bc.appendChild(sp); }
-            const el = document.createElement('span');
-            el.className = `crumb ${idx === FolderSys.path.length-1 ? 'active' : ''}`;
-            el.innerText = p.name;
-            el.onclick = () => FolderSys.navTo(idx);
-            bc.appendChild(el);
-        });
     }
 };
 
@@ -333,48 +371,26 @@ const SelectionSys = {
     selectedIds: new Set(),
     isSelecting: false,
     startPos: {x:0, y:0},
-    clipboard: { op: null, items: [] }, 
-
     start: (e) => {
-        if (e.target.closest('.item-card')) return;
-        
+        if(e.target.closest('.item-card')) return;
         SelectionSys.isSelecting = true;
-        SelectionSys.startPos = { x: e.pageX, y: e.pageY };
-        const marquee = document.getElementById('selection-marquee');
-        marquee.style.display = 'block';
-        marquee.style.left = e.pageX + 'px';
-        marquee.style.top = e.pageY + 'px';
-        marquee.style.width = '0px';
-        marquee.style.height = '0px';
-        if (!e.ctrlKey && !e.shiftKey) SelectionSys.clear();
+        SelectionSys.startPos = {x:e.pageX, y:e.pageY};
+        SelectionSys.clear();
         document.addEventListener('mousemove', SelectionSys.move);
         document.addEventListener('mouseup', SelectionSys.end);
+        document.getElementById('selection-marquee').style.display = 'block';
     },
     move: (e) => {
-        if (!SelectionSys.isSelecting) return;
-        const marquee = document.getElementById('selection-marquee');
-        const currentX = e.pageX;
-        const currentY = e.pageY;
-        
-        const width = Math.abs(currentX - SelectionSys.startPos.x);
-        const height = Math.abs(currentY - SelectionSys.startPos.y);
-        const left = Math.min(currentX, SelectionSys.startPos.x);
-        const top = Math.min(currentY, SelectionSys.startPos.y);
-        
-        marquee.style.width = width + 'px';
-        marquee.style.height = height + 'px';
-        marquee.style.left = left + 'px';
-        marquee.style.top = top + 'px';
-        
-        const rect = { left, top, right: left+width, bottom: top+height };
+        if(!SelectionSys.isSelecting) return;
+        const m = document.getElementById('selection-marquee');
+        const w = Math.abs(e.pageX - SelectionSys.startPos.x);
+        const h = Math.abs(e.pageY - SelectionSys.startPos.y);
+        const l = Math.min(e.pageX, SelectionSys.startPos.x);
+        const t = Math.min(e.pageY, SelectionSys.startPos.y);
+        m.style.left = l+'px'; m.style.top = t+'px'; m.style.width = w+'px'; m.style.height = h+'px';
         document.querySelectorAll('.item-card').forEach(card => {
-            const cardRect = card.getBoundingClientRect();
-            const cLeft = cardRect.left + window.scrollX;
-            const cTop = cardRect.top + window.scrollY;
-            const cRight = cLeft + cardRect.width;
-            const cBottom = cTop + cardRect.height;
-            const intersect = !(rect.left > cRight || rect.right < cLeft || rect.top > cBottom || rect.bottom < cTop);
-            if (intersect) {
+            const r = card.getBoundingClientRect();
+            if(l < r.right && l+w > r.left && t < r.bottom && t+h > r.top) {
                 SelectionSys.selectedIds.add(card.dataset.id);
                 card.classList.add('selected');
             }
@@ -382,522 +398,365 @@ const SelectionSys = {
     },
     end: () => {
         SelectionSys.isSelecting = false;
-        document.getElementById('selection-marquee').style.display = 'none';
         document.removeEventListener('mousemove', SelectionSys.move);
         document.removeEventListener('mouseup', SelectionSys.end);
-    },
-    toggle: (id, multi) => {
-        if (!multi) SelectionSys.clear();
-        if (SelectionSys.selectedIds.has(id)) {
-            SelectionSys.selectedIds.delete(id);
-            document.querySelector(`.item-card[data-id="${id}"]`)?.classList.remove('selected');
-        } else {
-            SelectionSys.selectedIds.add(id);
-            document.querySelector(`.item-card[data-id="${id}"]`)?.classList.add('selected');
-        }
+        document.getElementById('selection-marquee').style.display = 'none';
     },
     clear: () => {
         SelectionSys.selectedIds.clear();
-        document.querySelectorAll('.item-card.selected').forEach(el => el.classList.remove('selected'));
-    },
-    handleKey: (e) => {
-        if (document.getElementById('bookshelf-view').classList.contains('hidden')) return;
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-        
-        if (e.code === 'Delete' || e.code === 'Backspace') {
-            if (SelectionSys.selectedIds.size > 0 && confirm(`删除选中的 ${SelectionSys.selectedIds.size} 项？`)) {
-                SelectionSys.selectedIds.forEach(id => {
-                    const item = StorageManager.get(id);
-                    if (item && item.isSystem) return; 
-                    StorageManager.remove(id);
-                });
-                SelectionSys.clear();
-                App.renderList();
-            }
-        }
-        else if (e.ctrlKey && e.code === 'KeyC') { 
-            SelectionSys.clipboard = { op: 'copy', items: Array.from(SelectionSys.selectedIds) }; 
-            Utils.toast(`复制了 ${SelectionSys.clipboard.items.length} 项`); 
-        }
-        else if (e.ctrlKey && e.code === 'KeyX') { 
-            SelectionSys.clipboard = { op: 'cut', items: Array.from(SelectionSys.selectedIds) }; 
-            Utils.toast(`剪切了 ${SelectionSys.clipboard.items.length} 项`); 
-        }
-        else if (e.ctrlKey && e.code === 'KeyV') {
-            if (!SelectionSys.clipboard.items.length) return;
-            let count = 0;
-            SelectionSys.clipboard.items.forEach(oldId => {
-                const item = StorageManager.get(oldId);
-                if (!item) return;
-                if (SelectionSys.clipboard.op === 'cut') {
-                    item.parentId = FolderSys.currentId;
-                    StorageManager.save(item.id, item);
-                    count++;
-                } else {
-                    const newId = Utils.uuid();
-                    const newItem = { ...item, id: newId, parentId: FolderSys.currentId, name: item.name + ' 副本' };
-                    if(newItem.words) newItem.words = newItem.words.map(w => ({...w, id: Utils.uuid()}));
-                    StorageManager.save(newId, newItem);
-                    count++;
-                }
-            });
-            if (SelectionSys.clipboard.op === 'cut') SelectionSys.clipboard.items = []; 
-            App.renderList();
-            Utils.toast(SelectionSys.clipboard.op === 'cut' ? `移动 ${count} 项` : `粘贴 ${count} 项`);
-        }
-        else if (e.code === 'KeyA' && e.ctrlKey) { 
-            e.preventDefault(); 
-            document.querySelectorAll('.item-card').forEach(el => { 
-                SelectionSys.selectedIds.add(el.dataset.id); 
-                el.classList.add('selected'); 
-            }); 
-        }
+        document.querySelectorAll('.item-card.selected').forEach(e=>e.classList.remove('selected'));
     }
 };
 
 const App = {
-    isManageMode: false,
-    showRemainingMode: false,
     init: () => {
-        if(!StorageManager.get('system_mistakes')) StorageManager.save('system_mistakes', {id:'system_mistakes', name:'📅 错题本', words:[], isSystem:true, type:'book', parentId: 'root'});
-        App.loadPref();
-        App.renderList();
-        App.setupDragDrop();
-        window.addEventListener('keydown', SelectionSys.handleKey);
-        
-        document.addEventListener('click', (e) => {
-            if(!e.target.closest('.item-actions-row') && !e.target.closest('.menu-dropdown')) {
-                document.querySelectorAll('.menu-dropdown').forEach(el => { el.classList.remove('show'); el.style.display='none'; });
-            }
-        });
-    },
-    
-    loadPref: () => { document.getElementById('sort-pref').value = localStorage.getItem('sort_pref') || 'random'; },
-    savePref: () => { localStorage.setItem('sort_pref', document.getElementById('sort-pref').value); },
-
-    toggleMenu: (bookId, event) => {
-        event.stopPropagation();
-        const menu = document.getElementById(`menu-${bookId}`);
-        const wasHidden = menu.style.display !== 'flex';
-        document.querySelectorAll('.menu-dropdown').forEach(el => { el.classList.remove('show'); el.style.display='none'; });
-        if(wasHidden) { menu.classList.add('show'); menu.style.display = 'flex'; }
-    },
-
-    toggleProgressMode: (event) => {
-        event.stopPropagation();
-        App.showRemainingMode = !App.showRemainingMode;
+        StorageManager.initMistakeBook();
+        FolderSys.renderBreadcrumb();
         App.renderList();
     },
-
     renderList: () => {
         const list = document.getElementById('book-list');
         list.innerHTML = '';
-        const allItems = StorageManager.getAllItems();
-        const currentItems = allItems.filter(item => {
-            if (item.isSystem && FolderSys.currentId === 'root') return true;
-            return item.parentId === FolderSys.currentId;
-        });
-
-        currentItems.sort((a, b) => {
-            if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
-            return a.id > b.id ? -1 : 1;
-        });
-
-        if (currentItems.length === 0) list.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#999; padding:40px;">此文件夹为空</div>';
-
-        currentItems.forEach(item => {
+        const items = StorageManager.getAll().filter(x => x.parentId === FolderSys.currentId);
+        items.sort((a,b) => (a.type==='folder' ? -1 : 1));
+        if(items.length === 0) list.innerHTML = '<div style="color:#999;grid-column:1/-1;text-align:center;padding:20px;">空空如也</div>';
+        items.forEach(item => {
             const el = document.createElement('div');
-            el.className = `item-card ${SelectionSys.selectedIds.has(item.id) ? 'selected' : ''}`;
+            el.className = `item-card ${SelectionSys.selectedIds.has(item.id)?'selected':''}`;
             el.dataset.id = item.id;
-            el.dataset.type = item.type;
-            el.draggable = true;
-            
-            el.ondragstart = (e) => {
-                if (!SelectionSys.selectedIds.has(item.id)) { SelectionSys.clear(); SelectionSys.toggle(item.id, false); }
-                e.dataTransfer.setData('json', JSON.stringify({ ids: Array.from(SelectionSys.selectedIds), type: item.type }));
-            };
-            el.ondragover = (e) => { e.preventDefault(); el.classList.add('drag-target'); };
-            el.ondragleave = () => { el.classList.remove('drag-target'); };
-            el.ondrop = (e) => App.handleDrop(e, item);
-            
-            el.onclick = () => { 
-                if(item.type === 'folder') FolderSys.enter(item.id, item.name); 
-                else Training.start(item.id); 
-            };
-
-            const icon = item.type === 'folder' ? '📁' : '📘';
-            
-            let metaHtml = '';
-            if (item.type === 'book') {
-                const total = item.words.length;
-                const done = item.words.filter(w=>w.status===2).length;
-                const remaining = total - done;
-                const text = App.showRemainingMode ? `待学 ${remaining}` : `${done}/${total} 已学`;
-                metaHtml = `<div class="item-meta" onclick="App.toggleProgressMode(event)" title="点击切换显示模式">${text}</div>`;
-            } else {
-                metaHtml = `<div class="item-meta">文件夹</div>`;
-            }
-            
-            const actions = !item.isSystem && item.type === 'book' ? `
-                <div class="item-actions-row">
-                    <button class="btn btn-ghost btn-icon" title="气泡筛选" onclick="App.handlePoolMode('${item.id}', event)">🌊</button>
-                    <button class="btn btn-ghost btn-icon" title="重命名" onclick="App.handleRenameBook('${item.id}', event)">✏️</button>
-                    <button class="btn btn-ghost btn-icon" title="更多" onclick="App.toggleMenu('${item.id}', event)">⋮</button>
-                </div>
-                <div class="menu-dropdown" id="menu-${item.id}">
-                    <button class="menu-item" onclick="App.handleDedupeBook('${item.id}', event)">🧹 去重</button>
-                    <button class="menu-item" onclick="App.handleExportBook('${item.id}', event)">📥 导出</button>
-                    <button class="menu-item danger" onclick="App.handleDeleteBook('${item.id}', event)">🗑 删除</button>
-                </div>
-            ` : (!item.isSystem ? `
-                <div class="item-actions-row">
-                    <button class="btn btn-ghost btn-icon" title="重命名" onclick="App.handleRenameBook('${item.id}', event)">✏️</button>
-                    <button class="btn btn-ghost btn-icon" title="删除" onclick="App.handleDeleteBook('${item.id}', event)">🗑</button>
-                </div>
-            ` : `<div class="item-actions-row"></div>`);
-
+            const icon = item.type === 'folder' ? '📁' : (item.id==='system_mistakes' ? '📕' : '📘');
+            const meta = item.type === 'book' ? `<div class="item-meta">${item.words.length} 词</div>` : '';
             el.innerHTML = `
-                <div class="item-content">
-                    <div class="item-icon">${icon}</div>
-                    <div class="item-name" title="${item.name}">${item.name}</div>
-                    ${metaHtml}
+                <div class="item-icon">${icon}</div>
+                <div class="item-name">${item.name}</div>
+                ${meta}
+                <div class="item-actions-row">
+                    ${item.type==='book' ? `<button class="btn btn-ghost btn-icon" onclick="event.stopPropagation();App.deleteItem('${item.id}')">🗑</button>` : ''}
+                    ${item.type==='book' && !item.isSystem ? `<button class="btn btn-ghost btn-icon" onclick="event.stopPropagation();Pool.start('${item.id}')">🌊</button>` : ''}
                 </div>
-                ${actions}
             `;
+            el.onclick = () => {
+                if(item.type === 'folder') FolderSys.enter(item.id, item.name);
+                else Training.start(item.id);
+            };
             list.appendChild(el);
         });
     },
-
-    handleDrop: (e, targetItem) => {
-        e.preventDefault(); e.stopPropagation();
-        document.querySelectorAll('.drag-target').forEach(el => el.classList.remove('drag-target'));
-        try {
-            const data = JSON.parse(e.dataTransfer.getData('json'));
-            const ids = data.ids;
-            if (targetItem.type === 'folder') {
-                if (ids.includes(targetItem.id)) return;
-                let count = 0;
-                ids.forEach(id => {
-                    const item = StorageManager.get(id);
-                    if (item && item.parentId !== targetItem.id && !item.isSystem) {
-                        item.parentId = targetItem.id; StorageManager.save(id, item); count++;
-                    }
-                });
-                Utils.toast(`移动了 ${count} 项`); App.renderList();
-            }
-            else if (targetItem.type === 'book' && ids.length === 1 && ids[0] !== targetItem.id) {
-                const srcItem = StorageManager.get(ids[0]);
-                if (srcItem.type === 'book' && confirm(`合并 "${srcItem.name}" 到 "${targetItem.name}"？`)) {
-                    const existMap = new Set(targetItem.words.map(w=>w.word));
-                    srcItem.words.forEach(w => { if(!existMap.has(w.word)) targetItem.words.push(w); });
-                    StorageManager.save(targetItem.id, targetItem); StorageManager.remove(srcItem.id);
-                    App.renderList(); Utils.toast('合并完成');
-                }
-            }
-        } catch(err) {}
-    },
-    
-    handleDeleteBook: (bookId, event) => { event.stopPropagation(); if(confirm('确定删除？')) { StorageManager.remove(bookId); App.renderList(); } },
-    handleRenameBook: (bookId, event) => {
-        event.stopPropagation();
-        const book = StorageManager.get(bookId);
-        const newName = prompt("新名称：", book.name);
-        if (newName) { book.name = newName; StorageManager.save(bookId, book); App.renderList(); }
-    },
-    handleExportBook: (bookId, event) => {
-        event.stopPropagation();
-        const book = StorageManager.get(bookId);
-        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(book)], {type:'application/json'})); a.download = `${book.name}.json`; a.click();
-    },
-    handleDedupeBook: (bookId, event) => {
-        event.stopPropagation();
-        const book = StorageManager.get(bookId);
-        const map = new Map();
-        book.words.forEach(w => map.set(w.word, w));
-        if(map.size < book.words.length && confirm(`发现 ${book.words.length - map.size} 个重复，是否清理？`)) {
-            book.words = Array.from(map.values());
-            StorageManager.save(bookId, book); App.renderList(); Utils.toast("已去重");
-        } else { Utils.toast("无重复"); }
-    },
-    handlePoolMode: (bookId, event) => { event.stopPropagation(); Pool.start(bookId); },
-
-    setupDragDrop: () => {
-        const overlay = document.getElementById('drop-overlay');
-        document.body.ondragenter = (e) => { if(e.dataTransfer.types.includes('Files')) overlay.classList.add('active'); };
-        document.getElementById('drop-overlay').ondragleave = (e) => { if(e.target === overlay) overlay.classList.remove('active'); };
-        document.body.ondragover = (e) => e.preventDefault();
-        document.body.ondrop = (e) => {
-            if(e.target.closest('.item-card')) return; 
-            e.preventDefault(); overlay.classList.remove('active');
-            if(e.dataTransfer.files.length > 0) Array.from(e.dataTransfer.files).forEach(f => SyncSys.handleImportFile(f));
-        };
-    },
     processImport: () => {
         const text = document.getElementById('import-text').value;
-        const name = document.getElementById('import-name-input').value;
-        if(text) {
-            const words = SyncSys.parseText(text);
-            const id = Utils.uuid();
-            StorageManager.save(id, { id, name: name||'新单词本', words, type:'book', parentId: FolderSys.currentId, isSystem:false });
-            document.getElementById('import-modal').classList.add('hidden');
-            App.renderList();
-        }
+        const name = document.getElementById('import-name-input').value || '新单词本';
+        if(!text) return;
+        const words = text.split('\n').filter(l=>l.trim()).map(l => {
+            const parts = l.trim().split(/\s+/);
+            return { id: Utils.uuid(), word: parts[0], meaning: parts.slice(1).join(' '), status: 0 };
+        });
+        const id = Utils.uuid();
+        StorageManager.save(id, {id, name, type:'book', words, parentId: FolderSys.currentId});
+        document.getElementById('import-modal').classList.add('hidden');
+        App.renderList();
     },
     showImportModal: () => document.getElementById('import-modal').classList.remove('hidden'),
-    handleFileInput: (input) => { Array.from(input.files).forEach(f => SyncSys.handleImportFile(f)); input.value=''; document.getElementById('import-modal').classList.add('hidden'); },
-    endTraining: () => { 
-        clearInterval(Training.timer); window.removeEventListener('keydown', Training.handleKeyDown);
-        document.getElementById('training-view').classList.add('hidden'); 
+    endTraining: () => {
+        clearInterval(Training.timer);
+        document.getElementById('training-view').classList.add('hidden');
         document.getElementById('bookshelf-view').classList.remove('hidden');
-        App.renderList(); 
-    }
-};
-
-const SyncSys = {
-    exportData: () => { 
-        const data = {};
-        for(let i=0; i<localStorage.length; i++) { const k=localStorage.key(i); if(k.startsWith('bk_')) data[k]=localStorage.getItem(k); }
-        const b = new Blob([JSON.stringify(data)],{type:'application/json'});
-        const a = document.createElement('a'); a.href=URL.createObjectURL(b); a.download='backup.json'; a.click();
+        App.renderList();
     },
-    parseText: (text) => {
-        const words = [];
-        text.split('\n').forEach(line => {
-            line = line.trim(); if(!line) return;
-            const match = line.match(/^([^\s]+)\s+(?:(\/[^\/]+\/)\s+)?(.+)$/);
-            if(match) words.push({word: match[1], meaning: match[3], status: 0, id: Utils.uuid()});
-            else { const parts = line.split(/\s+/); if(parts.length>1) words.push({word: parts[0], meaning: parts.slice(1).join(' '), status: 0, id: Utils.uuid()}); }
-        });
-        return words;
+    deleteItem: (id) => {
+        if(confirm('确定删除？')) { StorageManager.remove(id); App.renderList(); }
     },
-    handleImportFile: (file) => {
-        const r = new FileReader();
-        r.onload = (e) => {
-            try {
-                const json = JSON.parse(e.target.result);
-                
-                // 1. 单本检查
-                if(json.words && Array.isArray(json.words)) {
-                    const id=Utils.uuid(); 
-                    StorageManager.save(id, {...json, id, parentId: FolderSys.currentId, type:'book', isSystem:false});
-                    App.renderList(); return;
-                }
-                
-                // 2. 备份检查 (修复点：提前判断)
-                const keys = Object.keys(json);
-                if (keys.some(k => k.startsWith('bk_'))) {
-                     if(confirm("检测到全量备份文件，是否恢复？\n注意：这将覆盖当前的同名数据。")) {
-                        for(const k in json) { if(k.startsWith('bk_')) localStorage.setItem(k, json[k]); }
-                        Utils.toast(`恢复成功`);
-                        setTimeout(() => location.reload(), 500);
-                    }
-                    return;
-                }
-
-                // 3. 旧版数组
-                if (Array.isArray(json)) {
-                    let count = 0;
-                    json.forEach(oldBook => {
-                        const newBook = { id: Utils.uuid(), name: oldBook.name || "导入本", isSystem: false, words: (oldBook.words || []).map(w => ({ word: w.word || w.spelling, meaning: w.meaning, status: 0, id: Utils.uuid() })) };
-                        StorageManager.save(newBook.id, newBook); count++;
-                    });
-                    Utils.toast(`已导入 ${count} 本`); App.renderList(); return;
-                }
-
-                throw new Error('Not recognized JSON');
-            } catch(err) {
-                // 4. 文本处理
-                const words = SyncSys.parseText(e.target.result);
-                if(words.length) {
-                    const id=Utils.uuid();
-                    const name = file.name.replace(/\.[^/.]+$/, "");
-                    StorageManager.save(id, {id, name, words, type:'book', parentId: FolderSys.currentId, isSystem:false});
-                    App.renderList();
-                }
-            }
-        };
-        r.readAsText(file);
-    }
+    savePref: () => { /* 预留 */ }
 };
 
 const Training = {
-    queue: [], current: [], round: 0, masteredPool: [], currentBookId: null, timer: null,
+    queue: [], current: [], round: 0, currentBookId: null, timer: null, timeLeft: 60, isPaused: false,
+    
     start: (id) => {
         const book = StorageManager.get(id);
-        if(!book || !book.words.length) return Utils.toast('空书');
+        const pending = book.words.filter(w => w.status !== 2);
+        if(!pending.length && book.words.length > 0) { Utils.toast('全书已掌握！'); return; }
+        if(book.words.length === 0) { Utils.toast('空书'); return; }
+        
         Training.currentBookId = id;
-        Training.masteredPool = book.words.filter(w=>w.status===2);
-        const pending = book.words.filter(w=>w.status!==2);
-        if(!pending.length) return Utils.toast('已全部掌握');
+        Training.queue = pending; 
+        Utils.shuffle(Training.queue);
         
-        const pref = document.getElementById('sort-pref').value;
-        if(pref === 'random') Utils.shuffle(pending);
-        else if(pref === 'az') pending.sort((a,b)=>a.word.localeCompare(b.word));
-        
-        Training.queue = pending;
         Training.round = 0;
         document.getElementById('bookshelf-view').classList.add('hidden');
         document.getElementById('training-view').classList.remove('hidden');
         document.getElementById('train-book-title').innerText = book.name;
-        window.addEventListener('keydown', Training.handleKeyDown);
+        document.getElementById('card-container').classList.remove('show-all-meanings');
         Training.next();
     },
+    
     next: () => {
         Training.round++;
         document.getElementById('round-count').innerText = Training.round;
-        const isReviewRound = (Training.round % 3 === 0);
-        const reviewBadge = document.getElementById('review-badge');
+        
         let batch = [];
-        if(isReviewRound && Training.masteredPool.length > 0) {
-            reviewBadge.classList.remove('hidden');
-            const pool = [...Training.masteredPool];
-            Utils.shuffle(pool);
-            const review = pool.slice(0, 2);
-            const newWords = Training.queue.splice(0, 8);
-            batch = [...newWords, ...review];
-            Utils.shuffle(batch);
+        const isReview = (Training.round % 3 === 0);
+        
+        if (isReview) {
+            const mistakeBook = StorageManager.get('system_mistakes');
+            const oldMistakes = mistakeBook.words.filter(w => w.status !== 2);
+            Utils.shuffle(oldMistakes);
+            const picks = oldMistakes.slice(0, 2);
+            if(picks.length > 0) {
+                document.getElementById('review-badge').classList.remove('hidden');
+                const newOnes = Training.queue.splice(0, 8 - picks.length);
+                batch = [...picks, ...newOnes];
+            } else {
+                batch = Training.queue.splice(0, 8);
+                document.getElementById('review-badge').classList.add('hidden');
+            }
         } else {
-            reviewBadge.classList.add('hidden');
+            document.getElementById('review-badge').classList.add('hidden');
             batch = Training.queue.splice(0, 8);
         }
-        if(!batch.length) { alert('完成'); return App.endTraining(); }
-        Training.current = batch.map(w=>({...w, status: w.status===2?2:0})); 
+
+        const map = new Map();
+        batch.forEach(w => map.set(w.word, w));
+        batch = Array.from(map.values());
+
+        if (batch.length === 0) {
+            alert('本轮训练完成！');
+            App.endTraining();
+            return;
+        }
+
+        Training.current = batch.map(w => ({...w, tempState: 0 })); 
         Training.render();
         Training.startTimer();
-        Training.setFocus(0, true);
     },
+
+    render: () => {
+        const c = document.getElementById('card-container');
+        c.innerHTML = '';
+        c.style.setProperty('--cols', Math.ceil(Training.current.length / 2));
+        
+        Training.current.forEach(w => {
+            const el = document.createElement('div');
+            const stateClass = w.tempState === 1 ? 'state-red' : (w.tempState === 2 ? 'state-green' : 'state-white');
+            
+            el.className = `word-card ${stateClass}`;
+            el.id = 'card-' + w.id;
+            
+            el.innerHTML = `
+                <div class="card-inner">
+                    <div class="card-front">
+                        <div class="check-mark">✅</div>
+                        <div class="section-top">
+                            <div class="word-text">${w.word}</div>
+                        </div>
+                        <div class="section-bottom">
+                            <div class="word-meaning">${w.meaning}</div>
+                        </div>
+                    </div>
+                    <div class="card-back">
+                        <div class="section-top">
+                            <div class="word-text">${w.word}</div>
+                        </div>
+                        <div class="section-bottom">
+                            <div class="word-meaning">${w.meaning}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            el.onclick = (event) => Training.handleCardClick(w, event);
+            c.appendChild(el);
+        });
+    },
+
+    handleCardClick: (w, event) => {
+        // **修复尝试：阻止默认滚动行为**
+        if (event) {
+            // 阻止默认行为，尤其是浏览器尝试滚动到焦点或弹出地址栏的行为
+            event.preventDefault(); 
+            // 阻止事件冒泡到可能触发滚动或抖动的父元素
+            event.stopPropagation();
+        }
+
+        if (Training.isPaused) return;
+
+        let nextState;
+        if (w.tempState === 0) nextState = 1;
+        else if (w.tempState === 1) nextState = 2;
+        else if (w.tempState === 2) nextState = 1;
+
+        w.tempState = nextState;
+        
+        const el = document.getElementById('card-' + w.id);
+        el.className = `word-card ${nextState === 1 ? 'state-red' : (nextState === 2 ? 'state-green' : 'state-white')}`;
+
+        if (Training.current.every(x => x.tempState === 2)) {
+            setTimeout(Training.finishBatch, 600);
+        }
+    },
+
+    toggleAllMeanings: () => {
+        document.getElementById('card-container').classList.toggle('show-all-meanings');
+    },
+
+    finishBatch: () => {
+        const bookId = Training.currentBookId;
+        const mistakes = [];
+        Training.current.forEach(w => {
+            const finalStatus = w.tempState === 2 ? 2 : 0; 
+            StorageManager.updateStatus(bookId, w.id, finalStatus);
+            if (finalStatus !== 2) {
+                mistakes.push(w);
+                if (!Training.queue.find(q => q.word === w.word)) Training.queue.push(w);
+            }
+        });
+
+        if (mistakes.length > 0) {
+            const mb = StorageManager.get('system_mistakes');
+            mistakes.forEach(mw => {
+                if (!mb.words.find(exist => exist.word === mw.word)) {
+                    mb.words.unshift({ ...mw, id: Utils.uuid(), status: 0 });
+                }
+            });
+            StorageManager.save('system_mistakes', mb);
+            Utils.toast(`${mistakes.length} 个存入错题本`);
+        } else {
+            Utils.toast('本轮全对！');
+        }
+        Training.next();
+    },
+
     startTimer: () => {
         clearInterval(Training.timer);
         Training.timeLeft = 60;
         const bar = document.getElementById('timer-progress');
-        bar.style.transition = 'none'; bar.style.width = '100%'; bar.offsetHeight; bar.style.transition = 'width 1s linear';
+        bar.style.transition = 'none'; bar.style.width = '100%'; bar.offsetHeight; 
+        bar.style.transition = 'width 1s linear';
         Training.timer = setInterval(() => {
-            if(Training.isPaused) return; 
+            if(Training.isPaused) return;
             Training.timeLeft--;
-            bar.style.width = (Training.timeLeft/60)*100+'%'; 
-            if(Training.timeLeft<=0) Training.finishBatch(); 
+            bar.style.width = (Training.timeLeft/60)*100 + '%';
+            if(Training.timeLeft <= 0) Training.finishBatch();
         }, 1000);
     },
+    
     togglePause: () => {
         Training.isPaused = !Training.isPaused;
         const overlay = document.getElementById('pause-overlay');
-        if(Training.isPaused) { overlay.classList.remove('hidden'); document.getElementById('timer-progress').style.transition = 'none'; } 
-        else { overlay.classList.add('hidden'); document.getElementById('timer-progress').style.transition = 'width 1s linear'; }
-    },
-    render: () => {
-        const c = document.getElementById('card-container'); c.innerHTML='';
-        c.style.setProperty('--cols', Math.ceil(Training.current.length / 2));
-        Training.current.forEach(w => {
-            const el = document.createElement('div'); el.className = `word-card ${w.status===2?'is-mastered':''} ${Training.masteredPool.find(mp=>mp.id===w.id)?'is-review-item':''}`;
-            el.id='card-'+w.id; el.draggable = true;
-            el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', w.word); };
-            el.oncontextmenu = (e) => { e.preventDefault(); Utils.copyToClipboard(w.word); };
-            el.innerHTML = `<div class="card-inner"><div class="card-front"><div class="check-mark">✅</div><div class="section-top"><div class="word-text" title="${w.word}">${w.word}</div></div><div class="section-bottom"></div></div><div class="card-back"><div class="section-top"><div class="word-text">${w.word}</div></div><div class="section-bottom"><div class="word-meaning">${w.meaning}</div></div></div>`;
-            el.onclick = () => Training.handleCardClick(w.id);
-            c.appendChild(el);
-        });
-    },
-    handleCardClick: (id) => {
-        if(Training.isPaused) return;
-        Training.hasInteracted = true;
-        const index = Training.current.findIndex(x => x.id === id);
-        if(index === -1) return;
-        const w = Training.current[index];
-        const el = document.getElementById('card-' + id);
-        Training.setFocus(index, false);
-        if(w.status===2) { w.status=1; el.classList.remove('is-mastered'); el.classList.add('is-reviewing'); }
-        else if(w.status===1) { w.status=2; el.classList.remove('is-reviewing'); el.classList.add('is-mastered'); }
-        else { w.status=1; el.classList.add('is-reviewing'); }
-        if(Training.current.every(x => x.status === 2)) setTimeout(Training.finishBatch, 500);
-    },
-    finishBatch: () => {
-        if (!Training.hasInteracted && Training.timeLeft <= 0) { App.endTraining(); return; }
-        const notMastered = Training.current.filter(w => w.status !== 2);
-        if(notMastered.length) { 
-            const mb = StorageManager.get('system_mistakes');
-            notMastered.forEach(w => { 
-                if(!mb.words.find(x=>x.word===w.word)) mb.words.unshift({...w, id:Utils.uuid(), status:0}); 
-                if (Training.queue.findIndex(q => q.id === w.id) === -1) Training.queue.push(w); 
-            });
-            StorageManager.save('system_mistakes', mb);
-            Utils.toast(`${notMastered.length} 个未掌握`); 
-        } else { Utils.toast('全对！'); }
-        Training.current.forEach(w => { StorageManager.updateStatus(Training.currentBookId, w.id, w.status); });
-        Training.next();
-    },
-    setFocus: (index, isKeyboard=false) => {
-        if (index < 0 || index >= Training.current.length) return;
-        if(Training.focusIndex !== -1) document.getElementById('card-' + Training.current[Training.focusIndex].id)?.classList.remove('is-keyboard-focus');
-        Training.focusIndex = index;
-        if (isKeyboard) {
-            const newEl = document.getElementById('card-' + Training.current[Training.focusIndex].id);
-            if(newEl) { newEl.classList.add('is-keyboard-focus'); newEl.scrollIntoView({behavior: "smooth", block: "center"}); }
-        }
-    },
-    toggleAllMeanings: () => document.querySelectorAll('.word-card').forEach(el=>el.classList.add('force-reveal')),
-    handleKeyDown: (e) => {
-        if(document.getElementById('training-view').classList.contains('hidden')) return;
-        if(Training.isPaused && e.code !== 'KeyP') return;
-        const isUp = e.code === 'KeyW' || e.code === 'ArrowUp';
-        const isDown = e.code === 'KeyS' || e.code === 'ArrowDown';
-        const isLeft = e.code === 'KeyA' || e.code === 'ArrowLeft';
-        const isRight = e.code === 'KeyD' || e.code === 'ArrowRight';
-        const isFlip = e.code === 'Space';
-        const isEnter = e.code === 'Enter';
-        
-        if (e.code === 'KeyP') { Training.togglePause(); return; }
-        if (isEnter) { Training.finishBatch(); return; }
-        
-        let cols = 2; 
-        if (window.innerWidth >= 768) cols = Math.ceil(Training.current.length / 2);
-        let nextIndex = Training.focusIndex;
-        if (nextIndex === -1 && (isUp||isDown||isLeft||isRight)) { Training.setFocus(0, true); return; }
-
-        if (isRight) { if ((nextIndex + 1) % cols !== 0) nextIndex++; } 
-        else if (isLeft) { if (nextIndex % cols !== 0) nextIndex--; } 
-        else if (isDown) { if (nextIndex + cols < Training.current.length) nextIndex += cols; } 
-        else if (isUp) { if (nextIndex - cols >= 0) nextIndex -= cols; } 
-        else if (isFlip) { e.preventDefault(); if (nextIndex !== -1) Training.handleCardClick(Training.current[nextIndex].id); Training.setFocus(nextIndex, true); }
-        if (nextIndex !== Training.focusIndex && nextIndex < Training.current.length) Training.setFocus(nextIndex, true); 
-    },
-    hasInteracted: false, isPaused: false, timeLeft: 60, focusIndex: -1
+        overlay.classList.toggle('hidden');
+    }
 };
 
-const Pool = { 
+StorageManager.updateStatus = (bookId, wordId, status) => {
+    const book = StorageManager.get(bookId);
+    if(book) {
+        let target = book.words.find(w => w.id === wordId);
+        if (target) {
+            target.status = status;
+            StorageManager.save(bookId, book);
+        }
+        const mb = StorageManager.get('system_mistakes');
+        const mTarget = mb.words.find(w => w.word === (target ? target.word : ''));
+        if (mTarget) {
+            mTarget.status = status;
+            StorageManager.save('system_mistakes', mb);
+        }
+    }
+};
+
+const Pool = {
     close: () => {
+        // 清除所有未执行的计时器
+        document.querySelectorAll('.bubble').forEach(el => {
+            if (el.revertTimer) clearTimeout(el.revertTimer);
+            if (el.vanishTimer) clearTimeout(el.vanishTimer);
+        });
+
         document.getElementById('pool-view').classList.add('hidden');
         document.getElementById('bookshelf-view').classList.remove('hidden');
-        App.renderList(); 
     },
     start: (bookId) => {
-        Pool.currentBookId = bookId;
+        Pool.bookId = bookId;
         const book = StorageManager.get(bookId);
-        if(!book) return;
         const words = book.words.filter(w => w.status !== 2);
-        if(words.length === 0) { Utils.toast("本书已全部掌握！"); return; }
+        if(!words.length) { Utils.toast("全书已掌握"); return; }
+        
         document.getElementById('bookshelf-view').classList.add('hidden');
         document.getElementById('pool-view').classList.remove('hidden');
-        const container = document.getElementById('pool-container');
-        container.innerHTML = '';
-        Utils.shuffle(words);
-        words.forEach(w => {
-            const el = document.createElement('div'); el.className = 'bubble'; el.draggable = true; el.dataset.state = 'word'; 
-            el.innerHTML = `<div class="bubble-layer layer-word">${w.word}</div><div class="bubble-layer layer-meaning">${w.meaning}</div>`;
-            el.ondragstart = (e) => { e.dataTransfer.setData('text/plain', w.word); };
-            el.oncontextmenu = (e) => { e.preventDefault(); Utils.copyToClipboard(w.word); };
-            let pressTimer;
-            const startPress = () => { pressTimer = setTimeout(() => { Utils.copyToClipboard(w.word); navigator.vibrate && navigator.vibrate(50); }, 600); };
-            const cancelPress = () => clearTimeout(pressTimer);
-            el.addEventListener('touchstart', startPress); el.addEventListener('touchend', cancelPress);
-            el.addEventListener('touchmove', cancelPress); el.addEventListener('mousedown', startPress); el.addEventListener('mouseup', cancelPress); el.addEventListener('mouseleave', cancelPress);
-            el.onclick = () => {
-                if (el.actionTimer) clearTimeout(el.actionTimer);
-                if (el.classList.contains('mastered')) { el.classList.remove('mastered', 'vanish'); el.dataset.state = 'word'; StorageManager.updateStatus(Pool.currentBookId, w.id, 0); return; }
-                if (el.dataset.state === 'word') { el.dataset.state = 'meaning'; el.actionTimer = setTimeout(() => { if (el.dataset.state === 'meaning') el.dataset.state = 'word'; }, 5000); return; }
-                if (el.dataset.state === 'meaning') { el.dataset.state = 'mastered'; el.classList.add('mastered'); StorageManager.updateStatus(Pool.currentBookId, w.id, 2); el.actionTimer = setTimeout(() => { el.classList.add('vanish'); }, 5000); }
+        const c = document.getElementById('pool-container');
+        c.innerHTML = '';
+        Utils.shuffle(words).forEach(w => {
+            const el = document.createElement('div');
+            el.className = 'bubble';
+            el.innerHTML = `<div class="bubble-face face-front">${w.word}</div><div class="bubble-face face-back">${w.meaning}</div>`;
+            
+            el.revertTimer = null; 
+            el.vanishTimer = null;
+
+            el.onclick = (event) => {
+                // **修复尝试：阻止默认滚动行为**
+                if (event) {
+                    event.preventDefault(); 
+                    event.stopPropagation();
+                }
+
+                if(el.classList.contains('vanish')) return;
+
+                // 1. 每次点击都清除当前气泡的计时器
+                if (el.revertTimer) {
+                    clearTimeout(el.revertTimer);
+                    el.revertTimer = null;
+                }
+                if (el.vanishTimer) {
+                    clearTimeout(el.vanishTimer);
+                    el.vanishTimer = null;
+                }
+
+                // 状态2(绿/Mastered) -> 状态1(Blue/Flipped/Meaning) [反悔/回看]
+                if(el.classList.contains('mastered')) {
+                    el.classList.remove('mastered');
+                    el.classList.add('flipped'); 
+                    
+                    // 开启 5 秒自动回弹计时器
+                    el.revertTimer = setTimeout(() => {
+                        el.classList.remove('flipped'); // 自动翻回正面
+                        el.revertTimer = null;
+                    }, 5000);
+
+                    return;
+                }
+                
+                // 状态1(Flipped/Meaning) -> 状态2(Green/Word) [掌握]
+                if(el.classList.contains('flipped')) {
+                    el.classList.remove('flipped'); // 翻回正面(0deg)
+                    el.classList.add('mastered');   // 变绿
+                    
+                    // 开启 3 秒消失计时器
+                    el.vanishTimer = setTimeout(() => {
+                        el.classList.add('vanish');
+                        StorageManager.updateStatus(Pool.bookId, w.id, 2);
+                    }, 3000);
+                    return;
+                }
+
+                // 状态0(White/Word) -> 状态1(Flipped/Meaning) [查看]
+                el.classList.add('flipped'); // 翻到背面(180deg)
+
+                // 开启 5 秒自动回弹计时器
+                el.revertTimer = setTimeout(() => {
+                    el.classList.remove('flipped'); // 自动翻回正面
+                    el.revertTimer = null;
+                }, 5000);
             };
-            container.appendChild(el);
+            c.appendChild(el);
         });
+    }
+};
+
+const SyncSys = {
+    exportData: () => {
+        const d = {};
+        StorageManager.getAll().forEach(i => d['bk_'+i.id] = i);
+        const b = new Blob([JSON.stringify(d)], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'backup.json'; a.click();
     }
 };
 
